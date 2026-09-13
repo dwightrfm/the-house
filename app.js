@@ -321,11 +321,11 @@ function countUp(el, target) {
 function renderLog() {
   if (!L.who) L.who = S.me;
   $("#logWho").innerHTML = PEOPLE.map(p =>
-    `<button class="btn mid" data-logwho="${esc(p)}" style="margin:0;${p === L.who
+    `<button class="btn mid" data-logwho="${esc(p)}" style="margin:0;width:auto;${p === L.who
       ? "background:var(--terra);color:#fff;border-color:var(--terra)" : ""}">${esc(p)}</button>`).join("");
 
   $("#logMins").innerHTML = [15, 30, 45, 60, 90].map(m =>
-    `<button class="btn mid" data-logmin="${m}" style="margin:0;flex:0 0 auto;padding:11px 15px;${m === L.mins
+    `<button class="btn mid" data-logmin="${m}" style="margin:0;flex:0 0 auto;width:auto;padding:12px 0;min-width:62px;${m === L.mins
       ? "background:var(--terra);color:#fff;border-color:var(--terra)" : ""}">${m}m</button>`).join("");
 
   $("#logRooms").innerHTML = S.rooms.map(r => {
