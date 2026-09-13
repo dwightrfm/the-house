@@ -1,6 +1,23 @@
 /* THE HOUSE — app
    Two people, one house, no chore list. */
 
+const BUILD = 7;
+
+// GitHub Pages caches index.html for ten minutes, so a phone can sit on an old
+// version long after a change ships. Ask the server what the current build is
+// and reload once if this page is behind.
+(async function freshnessCheck() {
+  try {
+    const r = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const latest = parseInt((await r.text()).trim(), 10);
+    if (!latest || latest <= BUILD) return;
+    const already = new URLSearchParams(location.search).get("b");
+    if (String(latest) === already) return;            // already tried, do not loop
+    location.replace(location.pathname + "?b=" + latest);
+  } catch (e) { /* offline is fine, keep what we have */ }
+})();
+
 const CFG = window.HOUSE_CONFIG || {};
 const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
 let sb = null;
