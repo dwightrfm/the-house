@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "house-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4188", "--directory", "/Users/dwightpauldillon/Paul/the-house"],
+      "port": 4188
+    }
+  ]
+}

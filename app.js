@@ -5,7 +5,7 @@ const CFG = window.HOUSE_CONFIG || {};
 const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
 let sb = null;
 
-const S = { rooms: [], tasks: [], settings: null, week: [], thanks: [], nights: [], me: null };
+const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], me: null };
 const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null };
 
 const $  = (q, r) => (r || document).querySelector(q);
@@ -48,19 +48,21 @@ function picker() {
 
 /* ---------- data ---------- */
 async function loadAll() {
-  const since = weekStart().toISOString();
+  const seasonFrom = new Date(Date.now() - 120 * DAY).toISOString();
   const [rooms, tasks, settings, week, thanks, nights] = await Promise.all([
     sb.from("rooms").select("*").order("sort_order"),
     sb.from("tasks").select("*").order("sort_order"),
     sb.from("settings").select("*").eq("id", 1).single(),
-    sb.from("log").select("*").gte("created_at", since),
+    sb.from("log").select("*").gte("created_at", seasonFrom),
     sb.from("thanks").select("*").order("created_at", { ascending: false }).limit(30),
     sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12)
   ]);
   S.rooms = rooms.data || [];
   S.tasks = tasks.data || [];
   S.settings = settings.data || { weekly_goal: 180, floor_goal: 45, bare_minimum: false, season_started: isoDate(Date.now()) };
-  S.week = week.data || [];
+  S.season = week.data || [];
+  const wk = weekStart().getTime();
+  S.week = S.season.filter(e => new Date(e.created_at).getTime() >= wk);
   S.thanks = thanks.data || [];
   S.nights = nights.data || [];
 
@@ -171,9 +173,25 @@ function renderFeed() {
   ).join("");
 }
 
+function weekTotals() {                    // { mondayMs: points } across the season
+  const m = {};
+  S.season.forEach(e => { const k = weekStart(e.created_at).getTime(); m[k] = (m[k] || 0) + e.points; });
+  return m;
+}
 function streakCount() {
-  // Weeks are only provable back to what the log holds; this week counts once the goal is hit.
-  return hitGoal() ? 1 + (Number(localStorage.getItem("house_streak")) || 0) : (Number(localStorage.getItem("house_streak")) || 0);
+  const totals = weekTotals(), goal = S.settings.weekly_goal, floor = S.settings.floor_goal;
+  let n = 0, k = weekStart().getTime();
+  // This week only counts once it is actually hit. Past weeks count at the goal
+  // that was live then, which we cannot know, so a past week clears at the floor.
+  if ((totals[k] || 0) >= goalNow()) n++;
+  k -= 7 * DAY;
+  while ((totals[k] || 0) >= Math.min(goal, floor)) { n++; k -= 7 * DAY; }
+  return n;
+}
+function minsForLastWeek(p) {
+  const k = weekStart().getTime() - 7 * DAY;
+  return S.season.filter(e => e.person === p && weekStart(e.created_at).getTime() === k)
+                 .reduce((n, e) => n + e.minutes, 0);
 }
 
 /* ---------- blitz ---------- */
@@ -325,7 +343,7 @@ function renderScore() {
 
   const mine = minsFor(S.me);
   $("#scMineTitle").textContent = "Your own line";
-  const last = Number(localStorage.getItem("house_last_mine_" + S.me) || 0);
+  const last = minsForLastWeek(S.me);
   $("#scMine").textContent = mine + " minutes this week. Last week you put in " + last + ". "
     + (mine >= last ? "You're ahead of yourself." : "Still time.");
 
