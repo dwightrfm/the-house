@@ -7,6 +7,7 @@ let sb = null;
 
 const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], me: null };
 const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null, wrote: [], prev: null };
+const L = { who: null, mins: 0, rooms: [] };
 
 const $  = (q, r) => (r || document).querySelector(q);
 const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
@@ -78,6 +79,7 @@ function go(id) {
   $$(".screen").forEach(s => s.classList.toggle("on", s.id === id));
   window.scrollTo(0, 0);
   if (id === "s-board")     renderBoard();
+  if (id === "s-log")       renderLog();
   if (id === "s-standards") renderStandards();
   if (id === "s-score")     renderScore();
   if (id === "s-settings")  renderSettings();
@@ -315,6 +317,57 @@ function countUp(el, target) {
   const t = setInterval(() => { n = Math.min(target, n + step); el.textContent = n; if (n >= target) clearInterval(t); }, 28);
 }
 
+/* ---------- log it: cleaning that already happened ---------- */
+function renderLog() {
+  if (!L.who) L.who = S.me;
+  $("#logWho").innerHTML = PEOPLE.map(p =>
+    `<button class="btn mid" data-logwho="${esc(p)}" style="margin:0;${p === L.who
+      ? "background:var(--terra);color:#fff;border-color:var(--terra)" : ""}">${esc(p)}</button>`).join("");
+
+  $("#logMins").innerHTML = [15, 30, 45, 60, 90].map(m =>
+    `<button class="btn mid" data-logmin="${m}" style="margin:0;flex:0 0 auto;padding:11px 15px;${m === L.mins
+      ? "background:var(--terra);color:#fff;border-color:var(--terra)" : ""}">${m}m</button>`).join("");
+
+  $("#logRooms").innerHTML = S.rooms.map(r => {
+    const on = L.rooms.includes(r.id);
+    return `<button class="btn" data-logroom="${r.id}" style="margin-bottom:8px;${on
+      ? "background:var(--sage);color:#fff;border-color:var(--sage)" : ""}">${esc(r.name)}</button>`;
+  }).join("");
+
+  const n = L.rooms.length;
+  $("#logSplit").textContent = (n > 1 && L.mins)
+    ? Math.round(L.mins / n) + " minutes counted to each of the " + n + " rooms."
+    : (n === 0 ? "Pick at least one so the room actually fills up." : "");
+  $("#logErr").textContent = "";
+}
+
+async function saveLog() {
+  const typed = Number($("#logCustom").value);
+  const mins = typed > 0 ? typed : L.mins;
+  const what = $("#logWhat").value.trim();
+  if (!mins)            { $("#logErr").textContent = "How long?"; return; }
+  if (!L.rooms.length)  { $("#logErr").textContent = "Which room?"; return; }
+
+  const each = Math.round(mins / L.rooms.length);
+  const rows = L.rooms.map(id => {
+    const r = S.rooms.find(x => x.id === id);
+    return { person: L.who, room_id: id, task_name: what || "Cleaned " + r.name,
+             minutes: each, points: each, fresh_before: fresh(r) };
+  });
+  await sb.from("log").insert(rows);
+
+  for (const id of L.rooms) {
+    const r = S.rooms.find(x => x.id === id);
+    const after = Math.max(0, Math.min(100, fresh(r) + each * 4));
+    await sb.from("rooms").update({ fresh_base: after, fresh_at: new Date().toISOString() }).eq("id", id);
+  }
+
+  L.mins = 0; L.rooms = []; L.who = S.me;
+  $("#logCustom").value = ""; $("#logWhat").value = "";
+  await loadAll();
+  go("s-board");
+}
+
 /* ---------- standards ---------- */
 function renderStandards() {
   const set = S.tasks.filter(t => t.standard_photo).length;
@@ -444,9 +497,11 @@ function renderSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo]");
+  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo],[data-logwho],[data-logmin],[data-logroom]");
 
   if (e.target.closest("#startBlitz"))  return startBlitz();
+  if (e.target.closest("#goLog"))       return go("s-log");
+  if (e.target.closest("#logSave"))     return saveLog();
   if (e.target.closest("#showAllRooms")) { $("#pickAll").hidden = !$("#pickAll").hidden; return; }
   if (e.target.closest("#runDone"))     return finishBlitz();
   if (e.target.closest("#rAgain"))      return startBlitz();
@@ -462,6 +517,13 @@ document.addEventListener("click", async e => {
   if (t.dataset.std)     return openStandard(t.dataset.std);
   if (t.dataset.roomtap) return openRoom(t.dataset.roomtap);
   if (t.dataset.undo)    return undoEntry(t.dataset.undo);
+  if (t.dataset.logwho)  { L.who = t.dataset.logwho; return renderLog(); }
+  if (t.dataset.logmin)  { L.mins = Number(t.dataset.logmin); $("#logCustom").value = ""; return renderLog(); }
+  if (t.dataset.logroom) {
+    const i = L.rooms.indexOf(t.dataset.logroom);
+    if (i < 0) L.rooms.push(t.dataset.logroom); else L.rooms.splice(i, 1);
+    return renderLog();
+  }
 
   if (t.dataset.task) {
     if (t.dataset.held) { delete t.dataset.held; return; }

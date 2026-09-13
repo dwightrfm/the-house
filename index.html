@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 
@@ -55,6 +55,8 @@
     <div class="feed" id="feed"></div>
 
     <div style="margin-top:18px">
+      <button class="btn mid" id="goLog"><b>Already cleaned? Log it.</b><br>
+        <span style="color:var(--muted);font-weight:600;font-size:14px">No timer. Just say what you did.</span></button>
       <button class="btn mid" data-go="s-standards">The Standards</button>
       <button class="btn mid" data-go="s-score">Scoreboard</button>
       <button class="btn mid" data-go="s-settings">Settings</button>
@@ -113,6 +115,32 @@
       <button class="btn mid" data-go="s-board">Done for now</button>
       <button class="btn ghost" id="rUndo">Didn't mean that. Undo it.</button>
     </div>
+  </div>
+</section>
+
+<!-- LOG IT -->
+<section id="s-log" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">Log it</div><button class="btn ghost" style="width:auto" data-go="s-board">Cancel</button></div>
+    <p class="sub">Cleaning that already happened. No timer needed.</p>
+
+    <div class="field"><label>Who did it?</label><div class="row" id="logWho"></div></div>
+
+    <div class="field"><label>How long?</label>
+      <div class="row" style="flex-wrap:wrap;gap:8px" id="logMins"></div>
+      <input id="logCustom" type="number" inputmode="numeric" placeholder="or type the minutes" style="margin-top:8px">
+    </div>
+
+    <div class="field"><label>Which rooms? Tap all that apply.</label>
+      <div id="logRooms"></div>
+      <p class="sub" style="margin:8px 0 0" id="logSplit"></p>
+    </div>
+
+    <div class="field"><label>What got done? (optional)</label>
+      <input id="logWhat" placeholder="Deep cleaned the kitchen"></div>
+
+    <button class="btn go mid" id="logSave">Log it</button>
+    <div class="err" id="logErr"></div>
   </div>
 </section>
 
@@ -193,7 +221,7 @@
 <div id="sheet" class="sheet" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
