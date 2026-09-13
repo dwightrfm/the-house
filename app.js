@@ -250,8 +250,10 @@ async function finishBlitz() {
 
   B.wrote = []; B.prev = null;
   if (mins > 0) {
+    const wasAt = fresh(B.room);
     const ins = await sb.from("log").insert(picked.map(t => ({
-      person: S.me, room_id: B.room.id, task_name: t.name, minutes: t.minutes, points: t.minutes
+      person: S.me, room_id: B.room.id, task_name: t.name, minutes: t.minutes,
+      points: t.minutes, fresh_before: wasAt
     }))).select("id");
     B.wrote = (ins.data || []).map(r => r.id);
     B.prev = { base: B.room.fresh_base, at: B.room.fresh_at };
@@ -289,7 +291,12 @@ async function undoEntry(id) {
   if (e.room_id) {
     const r = S.rooms.find(x => x.id === e.room_id);
     if (r) {
-      const back = Math.max(0, Math.min(100, fresh(r) - e.minutes * 4));
+      // Put the room back where it was before this tap. Blindly subtracting was
+      // wrong: a tap in an already-full room adds nothing, so undo must not take
+      // anything away either.
+      const back = (e.fresh_before === null || e.fresh_before === undefined)
+        ? Math.max(0, Math.min(100, fresh(r) - e.minutes * 4))
+        : Math.max(0, Math.min(100, Number(e.fresh_before)));
       await sb.from("rooms").update({ fresh_base: back, fresh_at: new Date().toISOString() }).eq("id", r.id);
     }
   }

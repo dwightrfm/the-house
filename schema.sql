@@ -31,6 +31,7 @@ create table if not exists log (
   task_name text,
   minutes int not null default 0,
   points int not null default 0,
+  fresh_before numeric,
   created_at timestamptz not null default now()
 );
 
