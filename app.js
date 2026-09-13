@@ -1,7 +1,7 @@
 /* THE HOUSE — app
    Two people, one house, no chore list. */
 
-const BUILD = 7;
+const BUILD = 8;
 
 // GitHub Pages caches index.html for ten minutes, so a phone can sit on an old
 // version long after a change ships. Ask the server what the current build is
@@ -22,7 +22,7 @@ const CFG = window.HOUSE_CONFIG || {};
 const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
 let sb = null;
 
-const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], me: null };
+const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], routines: [], me: null };
 const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null, wrote: [], prev: null };
 const L = { who: null, mins: 0, rooms: [] };
 let ledRange = "week";
@@ -68,13 +68,14 @@ function picker() {
 /* ---------- data ---------- */
 async function loadAll() {
   const seasonFrom = new Date(Date.now() - 120 * DAY).toISOString();
-  const [rooms, tasks, settings, week, thanks, nights] = await Promise.all([
+  const [rooms, tasks, settings, week, thanks, nights, routines] = await Promise.all([
     sb.from("rooms").select("*").order("sort_order"),
     sb.from("tasks").select("*").order("sort_order"),
     sb.from("settings").select("*").eq("id", 1).single(),
     sb.from("log").select("*").gte("created_at", seasonFrom),
     sb.from("thanks").select("*").order("created_at", { ascending: false }).limit(30),
-    sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12)
+    sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12),
+    sb.from("routines").select("*").order("sort_order")
   ]);
   S.rooms = rooms.data || [];
   S.tasks = tasks.data || [];
@@ -84,6 +85,7 @@ async function loadAll() {
   S.week = S.season.filter(e => new Date(e.created_at).getTime() >= wk);
   S.thanks = thanks.data || [];
   S.nights = nights.data || [];
+  S.routines = routines.data || [];
 
   // A bare minimum week expires on its own at the start of the next week.
   if (S.settings.bare_minimum && S.settings.bare_minimum_week !== isoDate(weekStart())) {
@@ -124,6 +126,14 @@ function renderBoard() {
   $("#rooms").innerHTML = show.map(x => roomCard(x.r, x.v, true)).join("");
   $("#moreRooms").textContent = rest > 0 ? "and " + rest + " others, all doing fine" : "";
 
+  $("#todayCard").innerHTML = listCard("daily", "Today", {
+    open: "The small stuff that keeps this place livable.",
+    done: "Today is handled. Both of you."
+  });
+  $("#weekCard").innerHTML = listCard("weekly", "This week", {
+    open: "The bigger jobs. Any day this week is fine.",
+    done: "Whole week's list is done."
+  });
   renderDateCard();
   renderThankPrompt();
   renderFeed();
@@ -335,6 +345,62 @@ function countUp(el, target) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) { el.textContent = target; return; }
   let n = 0; const step = Math.max(1, Math.round(target / 24));
   const t = setInterval(() => { n = Math.min(target, n + step); el.textContent = n; if (n >= target) clearInterval(t); }, 28);
+}
+
+/* ---------- the daily and weekly lists ---------- */
+const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); };
+
+// A routine is done when there is a log row for it inside the current window.
+// Nothing resets, nothing expires, nothing is ever late. It just stops counting.
+function routineDone(r) {
+  const from = r.cadence === "daily" ? dayStart() : weekStart().getTime();
+  return S.season.find(e => e.routine_id === r.id && new Date(e.created_at).getTime() >= from);
+}
+
+function listCard(cadence, title, blurb) {
+  const items = S.routines.filter(r => r.cadence === cadence);
+  if (!items.length) return "";
+  const done = items.filter(routineDone);
+  const all = done.length === items.length;
+
+  return `<div class="card" style="${all ? "border-color:var(--sage)" : ""}">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+      <h3 style="margin:0">${title}</h3>
+      <span style="font-weight:800;font-size:15px;color:${all ? "var(--sage)" : "var(--muted)"}">${done.length}/${items.length}</span>
+    </div>
+    <p style="margin:4px 0 12px">${all ? blurb.done : blurb.open}</p>
+    ${items.map(r => {
+      const hit = routineDone(r);
+      return `<button class="chip" data-routine="${r.id}" style="margin-bottom:7px;padding:12px 14px;${hit
+        ? "background:var(--sage);border-color:var(--sage);color:#fff" : ""}">
+        <span style="font-size:18px;width:22px;flex:0 0 22px">${hit ? "&#10003;" : ""}</span>
+        <span class="cn" style="${hit ? "opacity:.85" : ""}">${esc(r.name)}</span>
+        <span class="cm" style="${hit ? "color:#fff;opacity:.8" : ""}">${hit ? esc(hit.person) : r.minutes + "m"}</span>
+      </button>`;
+    }).join("")}
+  </div>`;
+}
+
+async function toggleRoutine(id) {
+  const r = S.routines.find(x => x.id === id); if (!r) return;
+  const hit = routineDone(r);
+
+  if (hit) {                                   // tapped by mistake, take it back
+    if (hit.person !== S.me) return;           // only your own, same rule as everywhere
+    return undoEntry(hit.id).then(() => { loadAll().then(renderBoard); });
+  }
+
+  const room = S.rooms.find(x => x.id === r.room_id);
+  await sb.from("log").insert({
+    person: S.me, room_id: r.room_id || null, routine_id: r.id,
+    task_name: r.name, minutes: r.minutes, points: r.minutes,
+    fresh_before: room ? fresh(room) : null
+  });
+  if (room) {
+    const after = Math.max(0, Math.min(100, fresh(room) + r.minutes * 4));
+    await sb.from("rooms").update({ fresh_base: after, fresh_at: new Date().toISOString() }).eq("id", room.id);
+  }
+  await loadAll(); renderBoard();
 }
 
 /* ---------- the ledger: every entry, both people, with totals ---------- */
@@ -553,6 +619,16 @@ function renderSettings() {
       <button class="btn ghost" style="width:auto;margin:0" data-undo="${e.id}">Undo</button></div>`;
   }).join("") : `<div class="quiet">Nothing logged yet.</div>`;
 
+  const adminRows = c => S.routines.filter(r => r.cadence === c).map(r =>
+    `<div class="std-row"><span class="sn">${esc(r.name)}<span class="sm">${r.minutes} min${
+      r.room_id ? ", " + esc((S.rooms.find(x => x.id === r.room_id) || {}).name || "") : ""}</span></span>
+     <button class="btn ghost" style="width:auto;margin:0" data-delroutine="${r.id}">Remove</button></div>`).join("")
+    || `<div class="quiet">Nothing on this list.</div>`;
+  const dailyMins = S.routines.filter(r => r.cadence === "daily").reduce((n, r) => n + r.minutes, 0);
+  $("#dailyAdmin").innerHTML = adminRows("daily")
+    + `<p class="sub" style="margin:10px 0 0">${dailyMins} minutes a day if one person did all of it.</p>`;
+  $("#weeklyAdmin").innerHTML = adminRows("weekly");
+
   $("#roomAdmin").innerHTML = S.rooms.map(r =>
     `<div class="std-row"><span class="sn">${esc(r.name)}
        <span class="sm">${S.tasks.filter(t => t.room_id === r.id).length} tasks, fades ${r.decay_per_day}/day</span></span>
@@ -561,7 +637,7 @@ function renderSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo],[data-logwho],[data-logmin],[data-logroom],[data-led]");
+  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo],[data-logwho],[data-logmin],[data-logroom],[data-led],[data-routine],[data-delroutine]");
 
   if (e.target.closest("#startBlitz"))  return startBlitz();
   if (e.target.closest("#goLog"))       return go("s-log");
@@ -581,6 +657,13 @@ document.addEventListener("click", async e => {
   if (t.dataset.std)     return openStandard(t.dataset.std);
   if (t.dataset.roomtap) return openRoom(t.dataset.roomtap);
   if (t.dataset.undo)    return undoEntry(t.dataset.undo);
+  if (t.dataset.routine) return toggleRoutine(t.dataset.routine);
+  if (t.dataset.delroutine) {
+    const r = S.routines.find(x => x.id === t.dataset.delroutine);
+    if (!confirm("Take \"" + r.name + "\" off the list?")) return;
+    await sb.from("routines").delete().eq("id", r.id);
+    await loadAll(); return renderSettings();
+  }
   if (t.dataset.led)     { ledRange = t.dataset.led; return renderLedger(); }
   if (t.dataset.logwho)  { L.who = t.dataset.logwho; return renderLog(); }
   if (t.dataset.logmin)  { L.mins = Number(t.dataset.logmin); $("#logCustom").value = ""; return renderLog(); }
@@ -652,6 +735,19 @@ document.addEventListener("click", async e => {
   }).eq("id", 1);
   await loadAll(); renderSettings();
 });
+async function addRoutine(cadence, nameEl, minEl) {
+  const name = $(nameEl).value.trim(); if (!name) return;
+  const minutes = Number($(minEl).value) || 5;
+  const n = S.routines.filter(r => r.cadence === cadence).length;
+  await sb.from("routines").insert({ name, minutes, cadence, sort_order: n + 1 });
+  $(nameEl).value = ""; $(minEl).value = "";
+  await loadAll(); renderSettings();
+}
+document.addEventListener("click", e => {
+  if (e.target.closest("#addDaily"))  addRoutine("daily", "#newDaily", "#newDailyMin");
+  if (e.target.closest("#addWeekly")) addRoutine("weekly", "#newWeekly", "#newWeeklyMin");
+});
+
 document.addEventListener("click", async e => {
   if (!e.target.closest("#addRoom")) return;
   const name = $("#newRoom").value.trim(); if (!name) return;
