@@ -22,7 +22,10 @@ it to read and write the data, standard photos included. Nothing sensitive goes 
 
 1. Neither person can assign work to the other. You only claim it.
 2. Nothing is ever overdue, late, failed, or red. Rooms fade, they do not fail.
-3. The two scores are never shown side by side. Ever.
+3. Who did what is fully visible to both, with per-person totals, on the Who did what
+   screen. Dwight chose this on 2026-09-13 after being told the tradeoff: the team
+   score exists so neither person is ranked against the other, and a ledger with
+   totals undoes that. The Scoreboard still shows only the team number.
 4. Never more than three suggested rooms at once.
 5. Everything is priced in minutes.
 6. A broken streak says "new season" and moves on.

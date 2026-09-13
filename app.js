@@ -8,6 +8,7 @@ let sb = null;
 const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], me: null };
 const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null, wrote: [], prev: null };
 const L = { who: null, mins: 0, rooms: [] };
+let ledRange = "week";
 
 const $  = (q, r) => (r || document).querySelector(q);
 const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
@@ -80,6 +81,7 @@ function go(id) {
   window.scrollTo(0, 0);
   if (id === "s-board")     renderBoard();
   if (id === "s-log")       renderLog();
+  if (id === "s-ledger")    renderLedger();
   if (id === "s-standards") renderStandards();
   if (id === "s-score")     renderScore();
   if (id === "s-settings")  renderSettings();
@@ -302,7 +304,8 @@ async function undoEntry(id) {
       await sb.from("rooms").update({ fresh_base: back, fresh_at: new Date().toISOString() }).eq("id", r.id);
     }
   }
-  await loadAll(); renderSettings();
+  await loadAll();
+  if ($("#s-ledger").classList.contains("on")) renderLedger(); else renderSettings();
 }
 
 // The bar is a guess. Either of you can tell it the room is not actually clean.
@@ -315,6 +318,50 @@ function countUp(el, target) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) { el.textContent = target; return; }
   let n = 0; const step = Math.max(1, Math.round(target / 24));
   const t = setInterval(() => { n = Math.min(target, n + step); el.textContent = n; if (n >= target) clearInterval(t); }, 28);
+}
+
+/* ---------- the ledger: every entry, both people, with totals ---------- */
+function renderLedger() {
+  const rows = (ledRange === "week" ? S.week : S.season)
+    .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  $$("[data-led]").forEach(b => {
+    const on = b.dataset.led === ledRange;
+    b.style.background = on ? "var(--terra)" : "";
+    b.style.color = on ? "#fff" : "";
+    b.style.borderColor = on ? "var(--terra)" : "";
+  });
+
+  const tot = p => rows.filter(e => e.person === p).reduce((n, e) => n + e.minutes, 0);
+  const hi = Math.max(...PEOPLE.map(tot), 1);
+  $("#ledTotals").innerHTML = PEOPLE.map(p => {
+    const m = tot(p), h = Math.floor(m / 60), r = m % 60;
+    return `<div class="card" style="margin:0;text-align:center;padding:16px 10px">
+      <div style="font-weight:800;font-size:15px">${esc(p)}</div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:-.03em;color:${m === hi && m > 0 ? "var(--terra)" : "var(--ink)"}">
+        ${h ? h + "h" : ""}${r ? " " + r + "m" : (h ? "" : m + "m")}</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:700">${rows.filter(e => e.person === p).length} entries</div>
+    </div>`;
+  }).join("");
+
+  if (!rows.length) { $("#ledList").innerHTML = `<div class="quiet">Nothing logged yet.</div>`; return; }
+
+  let out = "", lastDay = "";
+  rows.forEach(e => {
+    const d = new Date(e.created_at);
+    const day = d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    if (day !== lastDay) { out += `<h3 style="margin:20px 0 8px;font-size:15px;color:var(--muted)">${esc(day)}</h3>`; lastDay = day; }
+    const room = S.rooms.find(r => r.id === e.room_id);
+    const own = e.person === S.me;
+    out += `<div class="std-row">
+      <span class="sn">${esc(e.task_name || "Cleaned")}
+        <span class="sm">${esc(e.person)}${room ? ", " + esc(room.name) : ""}, ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
+      </span>
+      <span class="cm" style="font-weight:800;color:var(--muted);margin-right:${own ? "0" : "6px"}">${e.minutes}m</span>
+      ${own ? `<button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-undo="${e.id}">Undo</button>` : ""}
+    </div>`;
+  });
+  $("#ledList").innerHTML = out;
 }
 
 /* ---------- log it: cleaning that already happened ---------- */
@@ -497,7 +544,7 @@ function renderSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo],[data-logwho],[data-logmin],[data-logroom]");
+  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo],[data-logwho],[data-logmin],[data-logroom],[data-led]");
 
   if (e.target.closest("#startBlitz"))  return startBlitz();
   if (e.target.closest("#goLog"))       return go("s-log");
@@ -517,6 +564,7 @@ document.addEventListener("click", async e => {
   if (t.dataset.std)     return openStandard(t.dataset.std);
   if (t.dataset.roomtap) return openRoom(t.dataset.roomtap);
   if (t.dataset.undo)    return undoEntry(t.dataset.undo);
+  if (t.dataset.led)     { ledRange = t.dataset.led; return renderLedger(); }
   if (t.dataset.logwho)  { L.who = t.dataset.logwho; return renderLog(); }
   if (t.dataset.logmin)  { L.mins = Number(t.dataset.logmin); $("#logCustom").value = ""; return renderLog(); }
   if (t.dataset.logroom) {
