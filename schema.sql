@@ -63,8 +63,8 @@ create table if not exists settings (
 
 insert into settings (id) values (1) on conflict (id) do nothing;
 
--- Lock everything behind the shared login.
--- The anon key alone gets you nothing. You need the password.
+-- No login. Anyone holding the anon key can read and write.
+-- That key ships in the public repo, so treat this data as public.
 alter table rooms        enable row level security;
 alter table tasks        enable row level security;
 alter table log          enable row level security;
@@ -78,7 +78,7 @@ begin
   foreach t in array array['rooms','tasks','log','thanks','date_nights','settings'] loop
     execute format('drop policy if exists house_rw on %I', t);
     execute format(
-      'create policy house_rw on %I for all to authenticated using (true) with check (true)', t);
+      'create policy house_rw on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;
 end $$;
 

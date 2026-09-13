@@ -10,13 +10,13 @@ except which name you tapped.
 ## Setup, once
 
 1. **Make a Supabase project.** supabase.com, new project, free tier. Wait for it to finish building.
-2. **Run the schema.** SQL Editor, paste all of `schema.sql`, Run. This makes the tables, locks them behind a login, and loads the starting rooms and tasks.
-3. **Make the shared login.** Authentication > Users > Add user. Use any email you both know and a password you will both remember. Check "auto confirm."
-4. **Fill in `config.js`.** Settings > API gives you the Project URL and the anon public key. Put the same email from step 3 in `SHARED_EMAIL`.
-5. **Turn on Pages.** Repo Settings > Pages > Source: main branch, root folder.
-6. On each phone and the iPad: open the site, type the password once, then Share > Add to Home Screen.
+2. **Run the schema.** SQL Editor, paste all of `schema.sql`, Run. This makes the tables and loads the starting rooms and tasks.
+3. **Fill in `config.js`.** Settings > API gives you the Project URL and the anon public key.
+4. **Turn on Pages.** Repo Settings > Pages > Source: main branch, root folder.
+5. On each phone and the iPad: open the site, tap your name, then Share > Add to Home Screen.
 
-The anon key sitting in a public repo is fine. It does nothing without the password.
+No login. That means the anon key in this public repo is enough for anyone who finds
+it to read and write the data, standard photos included. Nothing sensitive goes in here.
 
 ## The rules the app enforces
 

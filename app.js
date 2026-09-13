@@ -429,9 +429,9 @@ document.addEventListener("pointerdown", e => {
   document.addEventListener(ev, () => clearTimeout(holdTimer)));
 
 /* ---------- boot ---------- */
-async function afterAuth() {
+async function start() {
   await loadAll();
-  $("#gate").hidden = true;
+  $("#boot").hidden = true;
   $("#app").hidden = false;
   S.me = localStorage.getItem("house_me");
   $("#whoBtns").innerHTML = PEOPLE.map(p =>
@@ -442,22 +442,6 @@ async function afterAuth() {
   go(S.me ? "s-board" : "s-who");
 }
 
-$("#gateGo").onclick = async () => {
-  const pw = $("#pw").value;
-  if (!pw) return;
-  $("#gateErr").textContent = "";
-  const { error } = await sb.auth.signInWithPassword({ email: CFG.SHARED_EMAIL, password: pw });
-  if (error) { $("#gateErr").textContent = "That's not it."; return; }
-  afterAuth();
-};
-$("#pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#gateGo").click(); });
-
-document.addEventListener("click", async e => {
-  if (!e.target.closest("#signOut")) return;
-  await sb.auth.signOut();
-  localStorage.removeItem("house_me");
-  location.reload();
-});
 document.addEventListener("click", async e => {
   if (!e.target.closest("#saveGoals")) return;
   await sb.from("settings").update({
@@ -484,11 +468,10 @@ document.addEventListener("click", async e => {
 
 (async function boot() {
   if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.startsWith("PASTE")) {
-    $("#gate").innerHTML = `<div class="inner"><div class="brand" style="font-size:26px">Almost there</div>
-      <p class="sub">Open <b>config.js</b> and paste in your Supabase project URL and anon key.</p></div>`;
+    $("#bootMsg").innerHTML = "Open <b>config.js</b> and paste in your Supabase project URL and anon key.";
     return;
   }
   sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-  const { data } = await sb.auth.getSession();
-  if (data && data.session) afterAuth();
+  try { await start(); }
+  catch (err) { $("#bootMsg").textContent = "Could not reach the database. Check config.js."; }
 })();
