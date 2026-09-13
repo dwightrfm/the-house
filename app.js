@@ -6,7 +6,7 @@ const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
 let sb = null;
 
 const S = { rooms: [], tasks: [], settings: null, week: [], season: [], thanks: [], nights: [], me: null };
-const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null };
+const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null, wrote: [], prev: null };
 
 const $  = (q, r) => (r || document).querySelector(q);
 const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
@@ -100,18 +100,18 @@ function renderBoard() {
   // rooms, three lowest first, never more than three
   const list = visibleRooms().map(r => ({ r, v: fresh(r) })).sort((a, b) => a.v - b.v);
   const show = list.slice(0, 3), rest = list.length - show.length;
-  $("#rooms").innerHTML = show.map(x => roomCard(x.r, x.v)).join("");
+  $("#rooms").innerHTML = show.map(x => roomCard(x.r, x.v, true)).join("");
   $("#moreRooms").textContent = rest > 0 ? "and " + rest + " others, all doing fine" : "";
 
   renderDateCard();
   renderThankPrompt();
   renderFeed();
 }
-function roomCard(r, v) {
+function roomCard(r, v, tap) {
   const s = state(v);
-  return `<div class="room ${s.cls}">
+  return `<${tap ? "button" : "div"} class="room ${s.cls}"${tap ? ` data-roomtap="${r.id}"` : ""}>
     <div class="rtop"><div class="rname">${esc(r.name)}</div><div class="rstate">${s.label}</div></div>
-    <div class="bar"><i style="width:${v.toFixed(0)}%"></i></div></div>`;
+    <div class="bar"><i style="width:${v.toFixed(0)}%"></i></div></${tap ? "button" : "div"}>`;
 }
 
 function renderDateCard() {
@@ -248,10 +248,13 @@ async function finishBlitz() {
   const picked = S.tasks.filter(t => B.done.includes(t.id));
   const mins = picked.reduce((n, t) => n + t.minutes, 0);
 
+  B.wrote = []; B.prev = null;
   if (mins > 0) {
-    await sb.from("log").insert(picked.map(t => ({
+    const ins = await sb.from("log").insert(picked.map(t => ({
       person: S.me, room_id: B.room.id, task_name: t.name, minutes: t.minutes, points: t.minutes
-    })));
+    }))).select("id");
+    B.wrote = (ins.data || []).map(r => r.id);
+    B.prev = { base: B.room.fresh_base, at: B.room.fresh_at };
     const before = fresh(B.room);
     const after = Math.max(0, Math.min(100, before + mins * 4));
     await sb.from("rooms").update({ fresh_base: after, fresh_at: new Date().toISOString() }).eq("id", B.room.id);
@@ -270,6 +273,35 @@ async function finishBlitz() {
   go("s-result");
   countUp($("#rPts"), mins);
 }
+async function undoBlitz() {
+  if (B.wrote.length) await sb.from("log").delete().in("id", B.wrote);
+  if (B.prev) await sb.from("rooms").update({ fresh_base: B.prev.base, fresh_at: B.prev.at }).eq("id", B.room.id);
+  B.wrote = []; B.prev = null;
+  await loadAll();
+  go("s-board");
+}
+
+// Take back one of your own taps. You can only ever undo your own.
+async function undoEntry(id) {
+  const e = S.season.find(x => x.id === id);
+  if (!e || e.person !== S.me) return;
+  await sb.from("log").delete().eq("id", id);
+  if (e.room_id) {
+    const r = S.rooms.find(x => x.id === e.room_id);
+    if (r) {
+      const back = Math.max(0, Math.min(100, fresh(r) - e.minutes * 4));
+      await sb.from("rooms").update({ fresh_base: back, fresh_at: new Date().toISOString() }).eq("id", r.id);
+    }
+  }
+  await loadAll(); renderSettings();
+}
+
+// The bar is a guess. Either of you can tell it the room is not actually clean.
+async function notActuallyClean(roomId) {
+  await sb.from("rooms").update({ fresh_base: 25, fresh_at: new Date().toISOString() }).eq("id", roomId);
+  await loadAll(); renderBoard();
+}
+
 function countUp(el, target) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) { el.textContent = target; return; }
   let n = 0; const step = Math.max(1, Math.round(target / 24));
@@ -291,6 +323,21 @@ function renderStandards() {
   }).join("");
 }
 const visibleRoomsAll = () => S.rooms;
+
+function openRoom(roomId) {
+  const r = S.rooms.find(x => x.id === roomId); if (!r) return;
+  const sh = $("#sheet");
+  sh.hidden = false;
+  sh.innerHTML = `<div style="width:100%;max-width:380px">
+    <div style="color:#fff;font-size:24px;font-weight:800;text-align:center;margin-bottom:16px">${esc(r.name)}</div>
+    <button class="btn go mid" id="rsBlitz">Blitz this room</button>
+    <button class="btn mid" id="rsDirty">This isn't actually clean</button>
+    <button class="btn ghost" id="rsClose" style="color:#fff">Never mind</button></div>`;
+  $("#rsBlitz").onclick = () => { sh.hidden = true; B.minutes = 10; runBlitz(r.id); };
+  $("#rsDirty").onclick = () => { sh.hidden = true; notActuallyClean(r.id); };
+  $("#rsClose").onclick = () => { sh.hidden = true; };
+  sh.onclick = e => { if (e.target === sh) sh.hidden = true; };
+}
 
 function openStandard(taskId) {
   const t = S.tasks.find(x => x.id === taskId);
@@ -372,6 +419,16 @@ function renderSettings() {
        <div class="tt"><b>${esc(r.name)}</b></div>
        <div class="sw ${r.in_floor ? "on" : ""}"><i></i></div></button>`).join("");
 
+  const mine = S.season.filter(e => e.person === S.me)
+    .sort((x, y) => new Date(y.created_at) - new Date(x.created_at)).slice(0, 12);
+  $("#recent").innerHTML = mine.length ? mine.map(e => {
+    const room = S.rooms.find(r => r.id === e.room_id);
+    const when = new Date(e.created_at);
+    return `<div class="std-row"><span class="sn">${esc(e.task_name || "Blitz")}
+      <span class="sm">${room ? esc(room.name) + ", " : ""}${when.toLocaleDateString(undefined,{weekday:"short"})} ${when.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}, ${e.minutes}m</span></span>
+      <button class="btn ghost" style="width:auto;margin:0" data-undo="${e.id}">Undo</button></div>`;
+  }).join("") : `<div class="quiet">Nothing logged yet.</div>`;
+
   $("#roomAdmin").innerHTML = S.rooms.map(r =>
     `<div class="std-row"><span class="sn">${esc(r.name)}
        <span class="sm">${S.tasks.filter(t => t.room_id === r.id).length} tasks, fades ${r.decay_per_day}/day</span></span>
@@ -380,12 +437,13 @@ function renderSettings() {
 
 /* ---------- events ---------- */
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom]");
+  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom],[data-roomtap],[data-undo]");
 
   if (e.target.closest("#startBlitz"))  return startBlitz();
   if (e.target.closest("#showAllRooms")) { $("#pickAll").hidden = !$("#pickAll").hidden; return; }
   if (e.target.closest("#runDone"))     return finishBlitz();
   if (e.target.closest("#rAgain"))      return startBlitz();
+  if (e.target.closest("#rUndo"))       return undoBlitz();
   if (e.target.closest("#whoChip"))     return go("s-who");
   if (e.target.closest("#switchWho"))   return go("s-who");
 
@@ -394,7 +452,9 @@ document.addEventListener("click", async e => {
   if (t.dataset.go)   return go(t.dataset.go);
   if (t.dataset.min)  { B.minutes = Number(t.dataset.min); return pickRooms(); }
   if (t.dataset.room) return runBlitz(t.dataset.room);
-  if (t.dataset.std)  return openStandard(t.dataset.std);
+  if (t.dataset.std)     return openStandard(t.dataset.std);
+  if (t.dataset.roomtap) return openRoom(t.dataset.roomtap);
+  if (t.dataset.undo)    return undoEntry(t.dataset.undo);
 
   if (t.dataset.task) {
     if (t.dataset.held) { delete t.dataset.held; return; }
