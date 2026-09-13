@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="The House">
+<meta name="theme-color" content="#FAF6F0">
+<title>The House</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- GATE -->
+<div id="gate" class="gate">
+  <div class="inner">
+    <div class="brand" style="font-size:30px;margin-bottom:4px">The House</div>
+    <p class="sub">Us against the mess.</p>
+    <div class="field"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"></div>
+    <button class="btn go mid" id="gateGo">Come in</button>
+    <div class="err" id="gateErr"></div>
+  </div>
+</div>
+
+<div id="app" hidden>
+
+<!-- WHO -->
+<section id="s-who" class="screen">
+  <div class="wrap">
+    <h2 style="margin-top:60px">Who's this?</h2>
+    <p class="sub">Tap your name. You can switch any time.</p>
+    <div id="whoBtns"></div>
+  </div>
+</section>
+
+<!-- BOARD -->
+<section id="s-board" class="screen">
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">The House</div>
+      <button class="who" id="whoChip">D</button>
+    </div>
+
+    <div class="pulse">
+      <div class="line" id="pulseLine">This week</div>
+      <div class="big"><span id="pulseNow">0</span> <span id="pulseGoal">of 180</span></div>
+      <div class="goalbar"><i id="pulseBar" style="width:0%"></i></div>
+      <div class="streak" id="pulseStreak"></div>
+    </div>
+
+    <div id="dateCard"></div>
+    <div id="thankPrompt"></div>
+    <div id="rooms"></div>
+    <div id="moreRooms" class="quiet"></div>
+    <div class="feed" id="feed"></div>
+
+    <div style="margin-top:18px">
+      <button class="btn mid" data-go="s-standards">The Standards</button>
+      <button class="btn mid" data-go="s-score">Scoreboard</button>
+      <button class="btn mid" data-go="s-settings">Settings</button>
+    </div>
+  </div>
+  <button class="primary" id="startBlitz">START A BLITZ</button>
+</section>
+
+<!-- BLITZ: time -->
+<section id="s-time" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">How long?</div><button class="btn ghost" style="width:auto" data-go="s-board">Cancel</button></div>
+    <p class="sub">Pick the time you actually have.</p>
+    <button class="btn big3" data-min="5">5<small>minutes</small></button>
+    <button class="btn big3" data-min="10">10<small>minutes</small></button>
+    <button class="btn big3" data-min="20">20<small>minutes</small></button>
+  </div>
+</section>
+
+<!-- BLITZ: room -->
+<section id="s-room" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">Where?</div><button class="btn ghost" style="width:auto" data-go="s-time">Back</button></div>
+    <p class="sub" id="roomSub">These three need it most.</p>
+    <div id="pickTop"></div>
+    <button class="btn ghost" id="showAllRooms">Other rooms</button>
+    <div id="pickAll" hidden></div>
+  </div>
+</section>
+
+<!-- BLITZ: run -->
+<section id="s-run" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand" id="runRoom">Kitchen</div><button class="btn ghost" style="width:auto" id="runDone">I'm done</button></div>
+    <div class="timer" id="timer">10:00</div>
+    <div class="tsub" id="tsub">Tap what you finish. Hold one to see the standard.</div>
+    <div id="chips"></div>
+  </div>
+</section>
+
+<!-- BLITZ: result -->
+<section id="s-result" class="screen">
+  <div class="wrap">
+    <div style="height:40px"></div>
+    <div class="result">
+      <div class="lbl">You banked</div>
+      <div class="pts" id="rPts">0</div>
+      <div class="lbl" id="rMin">0 minutes</div>
+      <div style="margin-top:22px;text-align:left">
+        <div class="room" id="rRoom" style="box-shadow:none;margin:0"></div>
+      </div>
+      <p class="sub" style="margin:18px 0 0" id="rTeam"></p>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn go mid" id="rAgain">Keep going</button>
+      <button class="btn mid" data-go="s-board">Done for now</button>
+    </div>
+  </div>
+</section>
+
+<!-- STANDARDS -->
+<section id="s-standards" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">The Standards</div><button class="btn ghost" style="width:auto" data-go="s-board">Back</button></div>
+    <p class="sub" id="stdSub"></p>
+    <div id="stdList"></div>
+  </div>
+</section>
+
+<!-- SCOREBOARD -->
+<section id="s-score" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">Scoreboard</div><button class="btn ghost" style="width:auto" data-go="s-board">Back</button></div>
+    <div class="pulse">
+      <div class="line">The team, this week</div>
+      <div class="big"><span id="scNow">0</span> <span id="scGoal">of 180</span></div>
+      <div class="goalbar"><i id="scBar" style="width:0%"></i></div>
+      <div class="streak" id="scStreak"></div>
+    </div>
+    <div class="card">
+      <h3 id="scMineTitle">Your own line</h3>
+      <p id="scMine"></p>
+    </div>
+    <div class="card">
+      <h3>The season</h3>
+      <p id="scSeason"></p>
+    </div>
+    <div id="scNights"></div>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="s-settings" class="screen">
+  <div class="wrap">
+    <div class="top"><div class="brand">Settings</div><button class="btn ghost" style="width:auto" data-go="s-board">Back</button></div>
+
+    <button class="toggle" id="bmToggle">
+      <div class="tt"><b>This week is a lot</b><span id="bmSub">Drop to the floor. The streak still counts.</span></div>
+      <div class="sw" id="bmSw"><i></i></div>
+    </button>
+
+    <div class="card">
+      <h3>Goals</h3>
+      <div class="field" style="margin-top:12px"><label>Weekly goal (points)</label><input id="setGoal" type="number" inputmode="numeric"></div>
+      <div class="field"><label>Bare minimum floor (points)</label><input id="setFloor" type="number" inputmode="numeric"></div>
+      <button class="btn go mid" id="saveGoals">Save</button>
+    </div>
+
+    <div class="card">
+      <h3>The floor</h3>
+      <p style="margin-bottom:12px">The three rooms that most change how this house feels. On a bare minimum week these are the only ones you see.</p>
+      <div id="floorList"></div>
+    </div>
+
+    <div class="card">
+      <h3>Rooms</h3>
+      <p style="margin-bottom:12px">Add or remove rooms. Tasks live inside The Standards.</p>
+      <div id="roomAdmin"></div>
+      <div class="field" style="margin-top:10px"><input id="newRoom" placeholder="New room name"></div>
+      <button class="btn mid" id="addRoom">Add room</button>
+    </div>
+
+    <button class="btn ghost" id="switchWho">Switch person</button>
+    <button class="btn ghost" id="signOut">Sign out of this device</button>
+  </div>
+</section>
+
+</div>
+
+<div id="sheet" class="sheet" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

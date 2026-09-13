@@ -1,0 +1,476 @@
+/* THE HOUSE — app
+   Two people, one house, no chore list. */
+
+const CFG = window.HOUSE_CONFIG || {};
+const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
+let sb = null;
+
+const S = { rooms: [], tasks: [], settings: null, week: [], thanks: [], nights: [], me: null };
+const B = { minutes: 10, room: null, done: [], endsAt: 0, tick: null };
+
+const $  = (q, r) => (r || document).querySelector(q);
+const $$ = (q, r) => Array.from((r || document).querySelectorAll(q));
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* ---------- time ---------- */
+const DAY = 86400000;
+function weekStart(d) {                      // Monday
+  const x = new Date(d || Date.now());
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+const isoDate = d => new Date(d).toISOString().slice(0, 10);
+
+/* ---------- freshness ---------- */
+function fresh(room) {
+  const days = (Date.now() - new Date(room.fresh_at).getTime()) / DAY;
+  return Math.max(0, Math.min(100, Number(room.fresh_base) - Number(room.decay_per_day) * days));
+}
+function state(v) {
+  if (v >= 70) return { cls: "s-fresh", label: "Fresh" };
+  if (v >= 40) return { cls: "s-mid",   label: "Getting there" };
+  return { cls: "s-low", label: "Needs love" };
+}
+const visibleRooms = () =>
+  (S.settings && S.settings.bare_minimum) ? S.rooms.filter(r => r.in_floor) : S.rooms;
+
+/* ---------- scoring ---------- */
+const goalNow  = () => S.settings ? (S.settings.bare_minimum ? S.settings.floor_goal : S.settings.weekly_goal) : 180;
+const teamWeek = () => S.week.reduce((n, e) => n + e.points, 0);
+const minsFor  = p => S.week.filter(e => e.person === p).reduce((n, e) => n + e.minutes, 0);
+const hitGoal  = () => teamWeek() >= goalNow();
+function picker() {
+  const a = minsFor(PEOPLE[0]), b = minsFor(PEOPLE[1]);
+  return a === b ? null : (a > b ? PEOPLE[0] : PEOPLE[1]);
+}
+
+/* ---------- data ---------- */
+async function loadAll() {
+  const since = weekStart().toISOString();
+  const [rooms, tasks, settings, week, thanks, nights] = await Promise.all([
+    sb.from("rooms").select("*").order("sort_order"),
+    sb.from("tasks").select("*").order("sort_order"),
+    sb.from("settings").select("*").eq("id", 1).single(),
+    sb.from("log").select("*").gte("created_at", since),
+    sb.from("thanks").select("*").order("created_at", { ascending: false }).limit(30),
+    sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12)
+  ]);
+  S.rooms = rooms.data || [];
+  S.tasks = tasks.data || [];
+  S.settings = settings.data || { weekly_goal: 180, floor_goal: 45, bare_minimum: false, season_started: isoDate(Date.now()) };
+  S.week = week.data || [];
+  S.thanks = thanks.data || [];
+  S.nights = nights.data || [];
+
+  // A bare minimum week expires on its own at the start of the next week.
+  if (S.settings.bare_minimum && S.settings.bare_minimum_week !== isoDate(weekStart())) {
+    await sb.from("settings").update({ bare_minimum: false }).eq("id", 1);
+    S.settings.bare_minimum = false;
+  }
+}
+
+/* ---------- nav ---------- */
+function go(id) {
+  $$(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+  window.scrollTo(0, 0);
+  if (id === "s-board")     renderBoard();
+  if (id === "s-standards") renderStandards();
+  if (id === "s-score")     renderScore();
+  if (id === "s-settings")  renderSettings();
+}
+
+/* ---------- board ---------- */
+function renderBoard() {
+  $("#whoChip").textContent = (S.me || "?")[0];
+
+  const now = teamWeek(), goal = goalNow();
+  $("#pulseLine").textContent = S.settings.bare_minimum ? "This week is a lot. Here is the floor." : "This week";
+  $("#pulseNow").textContent  = now;
+  $("#pulseGoal").textContent = "of " + goal;
+  $("#pulseBar").style.width  = Math.min(100, (now / goal) * 100) + "%";
+  const st = streakCount();
+  $("#pulseStreak").textContent = st > 0
+    ? st + (st === 1 ? " week running" : " weeks running")
+    : "New season. First week on the board.";
+
+  // rooms, three lowest first, never more than three
+  const list = visibleRooms().map(r => ({ r, v: fresh(r) })).sort((a, b) => a.v - b.v);
+  const show = list.slice(0, 3), rest = list.length - show.length;
+  $("#rooms").innerHTML = show.map(x => roomCard(x.r, x.v)).join("");
+  $("#moreRooms").textContent = rest > 0 ? "and " + rest + " others, all doing fine" : "";
+
+  renderDateCard();
+  renderThankPrompt();
+  renderFeed();
+}
+function roomCard(r, v) {
+  const s = state(v);
+  return `<div class="room ${s.cls}">
+    <div class="rtop"><div class="rname">${esc(r.name)}</div><div class="rstate">${s.label}</div></div>
+    <div class="bar"><i style="width:${v.toFixed(0)}%"></i></div></div>`;
+}
+
+function renderDateCard() {
+  const el = $("#dateCard");
+  if (!hitGoal()) { el.innerHTML = ""; return; }
+  const wk = isoDate(weekStart());
+  const night = S.nights.find(n => n.week_of === wk);
+  const p = (night && night.picker) || picker();
+  el.innerHTML = `<div class="card" style="border-color:var(--sage)">
+    <h3>Date night is on.</h3>
+    <p style="margin-bottom:10px">${p ? esc(p) + " picks this week." : "Dead even. Somebody pick."}</p>
+    <div class="field" style="margin:0"><input id="dnPlan" placeholder="What are we doing?" value="${esc(night && night.plan || "")}"></div>
+    <button class="btn go mid" id="dnSave" style="margin-top:10px">Save the plan</button></div>`;
+  $("#dnSave").onclick = async () => {
+    await sb.from("date_nights").upsert(
+      { week_of: wk, picker: p, plan: $("#dnPlan").value.trim() }, { onConflict: "week_of" });
+    await loadAll(); renderBoard();
+  };
+}
+
+function renderThankPrompt() {
+  const el = $("#thankPrompt");
+  const them = PEOPLE.find(p => p !== S.me);
+  const theirLast = S.week.filter(e => e.person === them)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+  if (!theirLast) { el.innerHTML = ""; return; }
+  const mine = S.thanks.find(t => t.from_person === S.me && t.to_person === them);
+  if (mine && new Date(mine.created_at) > new Date(theirLast.created_at)) { el.innerHTML = ""; return; }
+
+  const lines = [
+    "You make this house feel like home.",
+    "I'm glad it's you and me.",
+    "You showing up for us doesn't go unnoticed.",
+    "Thank you for who you are, not just what you did.",
+    "This place feels good because of you."
+  ];
+  const line = lines[new Date(theirLast.created_at).getDate() % lines.length];
+  el.innerHTML = `<div class="card" style="border-color:var(--sand)">
+    <h3>${esc(them)} put in work.</h3>
+    <p style="margin-bottom:12px">"${esc(line)}"</p>
+    <button class="btn go mid" id="thankGo">Send it</button>
+    <button class="btn ghost" id="thankOwn">Say my own thing</button></div>`;
+  $("#thankGo").onclick  = () => sendThanks(them, line);
+  $("#thankOwn").onclick = () => {
+    const own = prompt("What do you want to say to " + them + "?");
+    if (own && own.trim()) sendThanks(them, own.trim());
+  };
+}
+async function sendThanks(to, message) {
+  await sb.from("thanks").insert({ from_person: S.me, to_person: to, message });
+  await loadAll(); renderBoard();
+}
+
+function renderFeed() {
+  const cut = Date.now() - 3 * DAY;
+  const recent = S.thanks.filter(t => new Date(t.created_at).getTime() > cut).slice(0, 5);
+  $("#feed").innerHTML = recent.map(t =>
+    `<div class="thank">${esc(t.message)}<small><b>${esc(t.from_person)}</b> to ${esc(t.to_person)}</small></div>`
+  ).join("");
+}
+
+function streakCount() {
+  // Weeks are only provable back to what the log holds; this week counts once the goal is hit.
+  return hitGoal() ? 1 + (Number(localStorage.getItem("house_streak")) || 0) : (Number(localStorage.getItem("house_streak")) || 0);
+}
+
+/* ---------- blitz ---------- */
+function startBlitz() { go("s-time"); }
+
+function pickRooms() {
+  const list = visibleRooms().map(r => ({ r, v: fresh(r) })).sort((a, b) => a.v - b.v);
+  $("#pickTop").innerHTML = list.slice(0, 3).map(x =>
+    `<button class="btn" data-room="${x.r.id}"><b>${esc(x.r.name)}</b><br>
+     <span style="color:var(--muted);font-weight:600;font-size:14px">${state(x.v).label}</span></button>`).join("");
+  $("#pickAll").innerHTML = list.slice(3).map(x =>
+    `<button class="btn" data-room="${x.r.id}">${esc(x.r.name)}</button>`).join("")
+    || `<div class="quiet">That's all of them.</div>`;
+  $("#pickAll").hidden = true;
+  $("#roomSub").textContent = S.settings.bare_minimum
+    ? "Floor rooms only this week." : "These three need it most.";
+  go("s-room");
+}
+
+function runBlitz(roomId) {
+  B.room = S.rooms.find(r => r.id === roomId);
+  B.done = [];
+  B.endsAt = Date.now() + B.minutes * 60000;
+  $("#runRoom").textContent = B.room.name;
+  drawChips();
+  go("s-run");
+  clearInterval(B.tick);
+  B.tick = setInterval(paintTimer, 250);
+  paintTimer();
+}
+function paintTimer() {
+  const left = B.endsAt - Date.now(), el = $("#timer");
+  if (left <= 0) {
+    el.textContent = "TIME";
+    el.classList.add("done");
+    $("#tsub").textContent = "Time's up. Keep going if you're on a roll.";
+    clearInterval(B.tick);
+    return;
+  }
+  const s = Math.ceil(left / 1000);
+  el.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+function drawChips() {
+  const list = S.tasks.filter(t => t.room_id === B.room.id && !B.done.includes(t.id));
+  $("#chips").innerHTML = list.map(t =>
+    `<button class="chip" data-task="${t.id}">
+       <span class="cn">${esc(t.name)}${t.standard_photo ? `<br><span class="std">hold to see the standard</span>` : ""}</span>
+       <span class="cm">${t.minutes}m</span></button>`).join("")
+    || `<div class="quiet">Nothing left in here. Pick another room.</div>`;
+}
+
+async function finishBlitz() {
+  clearInterval(B.tick);
+  const picked = S.tasks.filter(t => B.done.includes(t.id));
+  const mins = picked.reduce((n, t) => n + t.minutes, 0);
+
+  if (mins > 0) {
+    await sb.from("log").insert(picked.map(t => ({
+      person: S.me, room_id: B.room.id, task_name: t.name, minutes: t.minutes, points: t.minutes
+    })));
+    const before = fresh(B.room);
+    const after = Math.max(0, Math.min(100, before + mins * 4));
+    await sb.from("rooms").update({ fresh_base: after, fresh_at: new Date().toISOString() }).eq("id", B.room.id);
+  }
+
+  await loadAll();
+  const room = S.rooms.find(r => r.id === B.room.id);
+  const v = fresh(room);
+  $("#rPts").textContent = mins;
+  $("#rMin").textContent = mins + (mins === 1 ? " minute" : " minutes");
+  $("#rRoom").outerHTML = roomCard(room, v).replace('class="room', 'id="rRoom" class="room');
+  const now = teamWeek(), goal = goalNow();
+  $("#rTeam").textContent = now >= goal
+    ? "That's the week. Date night is on."
+    : "Team is at " + now + " of " + goal + " this week.";
+  go("s-result");
+  countUp($("#rPts"), mins);
+}
+function countUp(el, target) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) { el.textContent = target; return; }
+  let n = 0; const step = Math.max(1, Math.round(target / 24));
+  const t = setInterval(() => { n = Math.min(target, n + step); el.textContent = n; if (n >= target) clearInterval(t); }, 28);
+}
+
+/* ---------- standards ---------- */
+function renderStandards() {
+  const set = S.tasks.filter(t => t.standard_photo).length;
+  $("#stdSub").textContent = set + " of " + S.tasks.length + " standards set. This is what settles what clean means, before anybody has to argue about it.";
+  $("#stdList").innerHTML = visibleRoomsAll().map(r => {
+    const ts = S.tasks.filter(t => t.room_id === r.id);
+    return `<h3 style="margin:20px 0 8px;font-size:17px">${esc(r.name)}</h3>` + ts.map(t =>
+      `<button class="std-row" data-std="${t.id}">
+         ${t.standard_photo ? `<img src="${t.standard_photo}" alt="">` : `<span class="ph"></span>`}
+         <span class="sn">${esc(t.name)}
+           <span class="sm">${t.standard_photo ? esc(t.standard_note || "Tap to view or replace") : "Set the standard"}</span>
+         </span></button>`).join("");
+  }).join("");
+}
+const visibleRoomsAll = () => S.rooms;
+
+function openStandard(taskId) {
+  const t = S.tasks.find(x => x.id === taskId);
+  if (!t) return;
+  if (t.standard_photo) {
+    const sh = $("#sheet");
+    sh.hidden = false;
+    sh.innerHTML = `<div><img src="${t.standard_photo}" alt="">
+      <p>${esc(t.standard_note || t.name)}</p>
+      <p style="opacity:.7;font-size:14px">Tap anywhere to close. Tap the button to replace it.</p>
+      <button class="btn go mid" id="replaceStd" style="margin-top:14px">Replace this standard</button></div>`;
+    sh.onclick = e => { if (e.target.id !== "replaceStd") sh.hidden = true; };
+    $("#replaceStd").onclick = e => { e.stopPropagation(); sh.hidden = true; shootStandard(t); };
+  } else shootStandard(t);
+}
+function shootStandard(t) {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment";
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    shrink(f, async dataUrl => {
+      const note = prompt("One line: what does done look like here?", t.standard_note || "") || t.standard_note || "";
+      await sb.from("tasks").update({ standard_photo: dataUrl, standard_note: note }).eq("id", t.id);
+      await loadAll(); renderStandards();
+    });
+  };
+  inp.click();
+}
+function shrink(file, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const max = 760, sc = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    cb(c.toDataURL("image/jpeg", 0.72));
+    URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+/* ---------- scoreboard ---------- */
+function renderScore() {
+  const now = teamWeek(), goal = goalNow();
+  $("#scNow").textContent  = now;
+  $("#scGoal").textContent = "of " + goal;
+  $("#scBar").style.width  = Math.min(100, (now / goal) * 100) + "%";
+  const st = streakCount();
+  $("#scStreak").textContent = st > 0 ? st + (st === 1 ? " week running" : " weeks running") : "New season.";
+
+  const mine = minsFor(S.me);
+  $("#scMineTitle").textContent = "Your own line";
+  const last = Number(localStorage.getItem("house_last_mine_" + S.me) || 0);
+  $("#scMine").textContent = mine + " minutes this week. Last week you put in " + last + ". "
+    + (mine >= last ? "You're ahead of yourself." : "Still time.");
+
+  const seasonDays = Math.floor((Date.now() - new Date(S.settings.season_started).getTime()) / DAY);
+  const left = Math.max(0, 84 - seasonDays);
+  $("#scSeason").textContent = left + " days until everything resets. Nothing here is permanent.";
+
+  $("#scNights").innerHTML = S.nights.filter(n => n.plan).length
+    ? `<div class="card"><h3>Date nights</h3>` + S.nights.filter(n => n.plan).map(n =>
+        `<p style="margin:8px 0"><b style="color:var(--ink)">${esc(n.week_of)}</b> ${esc(n.plan)}</p>`).join("") + `</div>`
+    : "";
+}
+
+/* ---------- settings ---------- */
+function renderSettings() {
+  const bm = !!S.settings.bare_minimum;
+  $("#bmSw").classList.toggle("on", bm);
+  $("#bmSub").textContent = bm
+    ? "On. Floor rooms only, goal is " + S.settings.floor_goal + ". Turns itself off next week."
+    : "Drop to the floor. The streak still counts.";
+  $("#setGoal").value  = S.settings.weekly_goal;
+  $("#setFloor").value = S.settings.floor_goal;
+
+  $("#floorList").innerHTML = S.rooms.map(r =>
+    `<button class="toggle" data-floor="${r.id}" style="margin-bottom:8px">
+       <div class="tt"><b>${esc(r.name)}</b></div>
+       <div class="sw ${r.in_floor ? "on" : ""}"><i></i></div></button>`).join("");
+
+  $("#roomAdmin").innerHTML = S.rooms.map(r =>
+    `<div class="std-row"><span class="sn">${esc(r.name)}
+       <span class="sm">${S.tasks.filter(t => t.room_id === r.id).length} tasks, fades ${r.decay_per_day}/day</span></span>
+     <button class="btn ghost" style="width:auto;margin:0" data-delroom="${r.id}">Remove</button></div>`).join("");
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-go],[data-min],[data-room],[data-task],[data-std],[data-floor],[data-delroom]");
+
+  if (e.target.closest("#startBlitz"))  return startBlitz();
+  if (e.target.closest("#showAllRooms")) { $("#pickAll").hidden = !$("#pickAll").hidden; return; }
+  if (e.target.closest("#runDone"))     return finishBlitz();
+  if (e.target.closest("#rAgain"))      return startBlitz();
+  if (e.target.closest("#whoChip"))     return go("s-who");
+  if (e.target.closest("#switchWho"))   return go("s-who");
+
+  if (!t) return;
+
+  if (t.dataset.go)   return go(t.dataset.go);
+  if (t.dataset.min)  { B.minutes = Number(t.dataset.min); return pickRooms(); }
+  if (t.dataset.room) return runBlitz(t.dataset.room);
+  if (t.dataset.std)  return openStandard(t.dataset.std);
+
+  if (t.dataset.task) {
+    if (t.dataset.held) { delete t.dataset.held; return; }
+    const id = t.dataset.task;
+    if (B.done.includes(id)) return;
+    B.done.push(id);
+    t.classList.add("gone");
+    setTimeout(drawChips, 340);
+    return;
+  }
+
+  if (t.dataset.floor) {
+    const r = S.rooms.find(x => x.id === t.dataset.floor);
+    await sb.from("rooms").update({ in_floor: !r.in_floor }).eq("id", r.id);
+    await loadAll(); return renderSettings();
+  }
+  if (t.dataset.delroom) {
+    const r = S.rooms.find(x => x.id === t.dataset.delroom);
+    if (!confirm("Remove " + r.name + " and its tasks?")) return;
+    await sb.from("rooms").delete().eq("id", r.id);
+    await loadAll(); return renderSettings();
+  }
+});
+
+// hold a task chip to see its standard
+let holdTimer = null;
+document.addEventListener("pointerdown", e => {
+  const c = e.target.closest("[data-task]"); if (!c) return;
+  holdTimer = setTimeout(() => { c.dataset.held = "1"; openStandard(c.dataset.task); }, 450);
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(ev =>
+  document.addEventListener(ev, () => clearTimeout(holdTimer)));
+
+/* ---------- boot ---------- */
+async function afterAuth() {
+  await loadAll();
+  $("#gate").hidden = true;
+  $("#app").hidden = false;
+  S.me = localStorage.getItem("house_me");
+  $("#whoBtns").innerHTML = PEOPLE.map(p =>
+    `<button class="btn big3" data-me="${esc(p)}">${esc(p)}</button>`).join("");
+  $$("[data-me]").forEach(b => b.onclick = () => {
+    S.me = b.dataset.me; localStorage.setItem("house_me", S.me); go("s-board");
+  });
+  go(S.me ? "s-board" : "s-who");
+}
+
+$("#gateGo").onclick = async () => {
+  const pw = $("#pw").value;
+  if (!pw) return;
+  $("#gateErr").textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email: CFG.SHARED_EMAIL, password: pw });
+  if (error) { $("#gateErr").textContent = "That's not it."; return; }
+  afterAuth();
+};
+$("#pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#gateGo").click(); });
+
+document.addEventListener("click", async e => {
+  if (!e.target.closest("#signOut")) return;
+  await sb.auth.signOut();
+  localStorage.removeItem("house_me");
+  location.reload();
+});
+document.addEventListener("click", async e => {
+  if (!e.target.closest("#saveGoals")) return;
+  await sb.from("settings").update({
+    weekly_goal: Number($("#setGoal").value) || 180,
+    floor_goal:  Number($("#setFloor").value) || 45
+  }).eq("id", 1);
+  await loadAll(); renderSettings();
+});
+document.addEventListener("click", async e => {
+  if (!e.target.closest("#bmToggle")) return;
+  const on = !S.settings.bare_minimum;
+  await sb.from("settings").update({
+    bare_minimum: on, bare_minimum_week: on ? isoDate(weekStart()) : null
+  }).eq("id", 1);
+  await loadAll(); renderSettings();
+});
+document.addEventListener("click", async e => {
+  if (!e.target.closest("#addRoom")) return;
+  const name = $("#newRoom").value.trim(); if (!name) return;
+  await sb.from("rooms").insert({ name, sort_order: S.rooms.length + 1 });
+  $("#newRoom").value = "";
+  await loadAll(); renderSettings();
+});
+
+(async function boot() {
+  if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.startsWith("PASTE")) {
+    $("#gate").innerHTML = `<div class="inner"><div class="brand" style="font-size:26px">Almost there</div>
+      <p class="sub">Open <b>config.js</b> and paste in your Supabase project URL and anon key.</p></div>`;
+    return;
+  }
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) afterAuth();
+})();
