@@ -1,7 +1,7 @@
 /* THE HOUSE — the calendar
    One house, one calendar, one team. Tasks sit on days. Days fill in. */
 
-const BUILD = 10;
+const BUILD = 11;
 
 // GitHub Pages caches index.html, so a phone can sit on an old version long
 // after a change ships. Ask the server what the current build is, reload once.
@@ -71,6 +71,14 @@ async function loadAll() {
     sb.from("thanks").select("*").order("created_at", { ascending: false }).limit(30),
     sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12)
   ]);
+  // The calendar tables are the one thing that needs a manual step in Supabase.
+  // If they are missing, say so plainly instead of showing an empty calendar.
+  if (plans.error || moves.error) {
+    const e = new Error("needs-migration");
+    e.needsMigration = true;
+    throw e;
+  }
+
   S.rooms = rooms.data || [];
   S.tasks = tasks.data || [];
   S.plans = plans.data || [];
@@ -949,7 +957,9 @@ async function start() {
   try { await start(); }
   catch (err) {
     console.error(err);
-    $("#bootMsg").innerHTML = "Could not load. If this is the first run after the update, "
-      + "paste <b>migrate_04.sql</b> into Supabase and press Run.";
+    $("#bootMsg").innerHTML = err && err.needsMigration
+      ? "One step left. Open Supabase, SQL Editor, paste all of <b>migrate_04.sql</b>, press Run. "
+        + "Then pull this page down to reload."
+      : "Could not reach the database. Check config.js.";
   }
 })();
