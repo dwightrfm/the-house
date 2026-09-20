@@ -34,6 +34,10 @@ square locks solid green with a check and confetti fires.
 **COMPLETE A TASK** at the bottom of every screen opens today straight away.
 Adding something new lives inside a day, next to the blitz button.
 
+**Adding is two taps.** What is it, how long, done. It lands on the day you had
+open, once. Repeats, rooms and floor tasks only appear when you edit something
+that already exists, so they never get in the way of writing one down.
+
 **Push and skip.** The three dots on any task push it to tomorrow, push it a
 week, drop it on any date, or skip that one time. A repeating task only moves
 the one occurrence you touched. Nothing is ever late, overdue, or red.

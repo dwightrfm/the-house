@@ -1,7 +1,7 @@
 /* THE HOUSE — the calendar
    One house, one calendar, one team. Tasks sit on days. Days fill in. */
 
-const BUILD = 12;
+const BUILD = 13;
 
 // GitHub Pages caches index.html, so a phone can sit on an old version long
 // after a change ships. Ask the server what the current build is, reload once.
@@ -449,7 +449,7 @@ function openMenu() {
 }
 
 /* ---------- add and edit ---------- */
-const MINS = [3, 5, 10, 15, 20, 30, 45, 60];
+const MINS = [5, 10, 15, 20, 30, 60];
 const REPEATS = [["none", "Just once"], ["daily", "Every day"], ["weekly", "Every week"],
                  ["biweekly", "Every other week"], ["monthly", "Every month"]];
 
@@ -466,10 +466,11 @@ function openAdd(plan, key) {
   A.floor   = plan ? !!plan.floor : false;
 
   $("#addTitle").textContent = plan ? "Edit task" : "New task";
+  $("#addSub").textContent = plan ? "" : "Goes on " + niceDay(d).toLowerCase() + ".";
   $("#aTitle").value = plan ? plan.title : "";
-  $("#aMinCustom").value = "";
+  $("#aMore").hidden = !plan;                 // adding stays two taps
   $("#aDelete").hidden = !plan;
-  $("#aSave").textContent = plan ? "Save it" : "Put it on the calendar";
+  $("#aSave").textContent = plan ? "Save it" : "Add it";
   $("#aErr").textContent = "";
   closeDay();
   renderAdd();
@@ -480,6 +481,8 @@ function openAdd(plan, key) {
 function renderAdd() {
   $("#aMins").innerHTML = MINS.map(m =>
     `<button data-amin="${m}" class="${m === A.minutes ? "on" : ""}">${m}m</button>`).join("");
+  if ($("#aMore").hidden) return;
+
   $("#aDate").value = A.date;
   $("#aRepeat").innerHTML = REPEATS.map(r =>
     `<button data-arep="${r[0]}" class="${r[0] === A.repeat ? "on" : ""}">${r[1]}</button>`).join("");
@@ -507,8 +510,7 @@ const ord = n => (n % 10 === 1 && n !== 11) ? "st" : (n % 10 === 2 && n !== 12) 
 async function saveAdd() {
   const title = $("#aTitle").value.trim();
   if (!title) { $("#aErr").textContent = "Give it a name."; return; }
-  const typed = Number($("#aMinCustom").value);
-  const minutes = typed > 0 ? typed : A.minutes;
+  const minutes = A.minutes;
 
   const row = {
     title, minutes, room_id: A.room || null, floor: A.floor,
@@ -802,7 +804,7 @@ document.addEventListener("click", async e => {
     await loadAll(); return renderSettings();
   }
   if (t.dataset.amin !== undefined && t.dataset.amin !== "") {
-    A.minutes = Number(t.dataset.amin); $("#aMinCustom").value = ""; return renderAdd();
+    A.minutes = Number(t.dataset.amin); return renderAdd();
   }
   if (t.dataset.arep) { A.repeat = t.dataset.arep; return renderAdd(); }
   if (t.dataset.adow !== undefined && t.dataset.adow !== "") { A.dow = Number(t.dataset.adow); return renderAdd(); }

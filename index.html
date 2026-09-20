@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 
@@ -69,30 +69,33 @@
   <div class="wrap">
     <div class="top"><div class="brand" id="addTitle">New task</div>
       <button class="btn ghost" style="width:auto" id="addCancel">Cancel</button></div>
+    <p class="sub" id="addSub"></p>
 
     <div class="field"><label>What is it?</label>
       <input id="aTitle" placeholder="Wipe down the counters" autocomplete="off"></div>
 
     <div class="field"><label>How long?</label>
-      <div class="chiprow" id="aMins"></div>
-      <input id="aMinCustom" type="number" inputmode="numeric" placeholder="or type the minutes" style="margin-top:8px"></div>
+      <div class="chiprow" id="aMins"></div></div>
 
-    <div class="field"><label>Which day?</label>
-      <input id="aDate" type="date"></div>
+    <!-- Only when editing something that already exists. Adding stays two taps. -->
+    <div id="aMore" hidden>
+      <div class="field"><label>Which day?</label>
+        <input id="aDate" type="date"></div>
 
-    <div class="field"><label>Does it come back?</label>
-      <div class="chiprow" id="aRepeat"></div>
-      <div id="aRepeatExtra" style="margin-top:10px"></div></div>
+      <div class="field"><label>Does it come back?</label>
+        <div class="chiprow" id="aRepeat"></div>
+        <div id="aRepeatExtra" style="margin-top:10px"></div></div>
 
-    <div class="field"><label>Room (optional)</label>
-      <div class="chiprow" id="aRoom"></div></div>
+      <div class="field"><label>Room (optional)</label>
+        <div class="chiprow" id="aRoom"></div></div>
 
-    <button class="toggle" id="aFloorT" style="margin-bottom:14px">
-      <div class="tt"><b>Part of the floor</b><span>Stays on the calendar on a hard week.</span></div>
-      <div class="sw" id="aFloorSw"><i></i></div>
-    </button>
+      <button class="toggle" id="aFloorT" style="margin-bottom:14px">
+        <div class="tt"><b>Part of the floor</b><span>Stays on the calendar on a hard week.</span></div>
+        <div class="sw" id="aFloorSw"><i></i></div>
+      </button>
+    </div>
 
-    <button class="btn go mid" id="aSave">Put it on the calendar</button>
+    <button class="btn go mid" id="aSave">Add it</button>
     <button class="btn ghost" id="aDelete" hidden>Delete this for good</button>
     <div class="err" id="aErr"></div>
   </div>
@@ -234,7 +237,7 @@
 <div id="burst" class="burst" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=12"></script>
-<script src="app.js?v=12"></script>
+<script src="config.js?v=13"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
