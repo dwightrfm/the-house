@@ -105,7 +105,7 @@ h2{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:6px 0 4px}
 .chip.done{background:color-mix(in srgb,var(--sage) 12%,var(--card));border-color:var(--sage)}
 .chip.done .box{background:var(--sage);border-color:var(--sage)}
 .chip.done .cn{opacity:.62;text-decoration:line-through;text-decoration-thickness:2px}
-.chip.done .cs{text-decoration:none;display:inline-block}
+.chip.done .cs{text-decoration:none}
 .chip.hit{animation:hit .45s cubic-bezier(.2,1.4,.3,1)}
 @keyframes hit{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
 .chip.gone{animation:pop .34s ease forwards}

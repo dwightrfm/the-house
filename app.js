@@ -1,7 +1,7 @@
 /* THE HOUSE — the calendar
    One house, one calendar, one team. Tasks sit on days. Days fill in. */
 
-const BUILD = 13;
+const BUILD = 14;
 
 // GitHub Pages caches index.html, so a phone can sit on an old version long
 // after a change ships. Ask the server what the current build is, reload once.
@@ -23,7 +23,6 @@ let sb = null;
 const S = { rooms: [], tasks: [], plans: [], moves: [], log: [], settings: null, nights: [] };
 const V = { view: "month", month: new Date(), week: null };
 const DS = { key: null };
-const B  = { key: null, endsAt: 0, tick: null, session: [] };
 const A  = { id: null, minutes: 10, date: null, repeat: "none", dow: 1, dom: 1,
              room: null, floor: false, back: "s-home" };
 let ledRange = "week";
@@ -179,16 +178,6 @@ function burst() {
   el.innerHTML = h; el.hidden = false;
   setTimeout(() => { el.hidden = true; el.innerHTML = ""; }, 1400);
 }
-function countUp(el, target) {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) {
-    el.textContent = target; return;
-  }
-  let n = 0; const step = Math.max(1, Math.round(target / 24));
-  const t = setInterval(() => {
-    n = Math.min(target, n + step); el.textContent = n;
-    if (n >= target) clearInterval(t);
-  }, 28);
-}
 
 /* ---------- nav ---------- */
 function go(id) {
@@ -327,9 +316,6 @@ function renderDay() {
     ? st.occ.map(x => taskChip(x, key, true)).join("")
     : `<div class="quiet">Free day. Add something if you want it on here.</div>`;
 
-  const left = st.mins - st.dmins;
-  $("#dsBlitz").hidden = left <= 0;
-  $("#dsBlitz").textContent = left ? "Blitz " + Math.min(left, 45) + " min" : "Start a blitz";
 }
 
 /* ---------- finishing things ---------- */
@@ -345,11 +331,10 @@ async function tick(planId, key) {
 
   const wasLocked = dayStat(key).locked;
   buzz(14);
-  const ins = await sb.from("log").insert({
+  await sb.from("log").insert({
     person: "us", room_id: p.room_id || null, plan_id: p.id, on_date: key,
     task_name: p.title, minutes: p.minutes, points: p.minutes
-  }).select("id");
-  if (ins.data && ins.data[0]) B.session.push(ins.data[0].id);
+  });
 
   await loadAll();
   const st = dayStat(key);
@@ -538,67 +523,6 @@ async function deletePlan() {
   await loadAll(); go("s-home");
 }
 
-/* ---------- blitz ---------- */
-function startBlitz(key) {
-  const st = dayStat(key);
-  const left = Math.max(5, Math.min(45, st.mins - st.dmins));
-  B.key = key; B.session = [];
-  B.endsAt = Date.now() + left * 60000;
-  closeDay();
-  $("#runDay").textContent = niceDay(key);
-  drawChips();
-  go("s-run");
-  clearInterval(B.tick);
-  B.tick = setInterval(paintTimer, 250);
-  paintTimer();
-}
-function paintTimer() {
-  const leftMs = B.endsAt - Date.now(), el = $("#timer");
-  if (leftMs <= 0) {
-    el.textContent = "TIME"; el.classList.add("done");
-    $("#tsub").textContent = "Time's up. Keep going if you're on a roll.";
-    clearInterval(B.tick); return;
-  }
-  el.classList.remove("done");
-  const s = Math.ceil(leftMs / 1000);
-  el.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-}
-function drawChips() {
-  const st = dayStat(B.key);
-  const open = st.occ.filter(x => !doneRow(x.p.id, B.key));
-  $("#chips").innerHTML = open.length
-    ? open.map(x => `<button class="chip" data-blitz="${x.p.id}">
-        <span class="box"></span>
-        <span class="cn">${esc(x.p.title)}</span>
-        <span class="cm">${x.p.minutes}m</span></button>`).join("")
-    : `<div class="quiet">That's the whole day. Nothing left on it.</div>`;
-}
-async function blitzTap(planId, el) {
-  el.classList.add("gone");
-  await tick(planId, B.key);
-  setTimeout(drawChips, 340);
-}
-async function finishBlitz() {
-  clearInterval(B.tick);
-  const mins = S.log.filter(e => B.session.includes(e.id)).reduce((n, e) => n + e.minutes, 0);
-  $("#rMin").textContent = mins + (mins === 1 ? " minute" : " minutes");
-  const st = dayStat(B.key);
-  $("#rLbl").textContent = "You banked";
-  $("#rTeam").textContent = st.locked
-    ? "That day is finished. Whole thing."
-    : (hitGoal() ? "That's the week's goal. Date night is on."
-                 : weekMins() + " of " + goalNow() + " minutes this week.");
-  $("#rUndo").hidden = !B.session.length;
-  go("s-result");
-  countUp($("#rPts"), mins);
-  if (mins > 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) burst();
-}
-async function undoBlitz() {
-  if (B.session.length) await sb.from("log").delete().in("id", B.session);
-  B.session = [];
-  await loadAll(); go("s-home");
-}
-
 /* ---------- the log ---------- */
 function ledRows() {
   const t = todayKey();
@@ -762,18 +686,12 @@ document.addEventListener("click", async e => {
   if (hit("#aFloorT"))   { A.floor = !A.floor; return renderAdd(); }
   if (hit("#dsClose"))   return closeDay();
   if (hit("#dsAdd"))     return openAdd(null, DS.key);
-  if (hit("#dsBlitz"))   return startBlitz(DS.key);
-  if (hit("#runDone"))   return finishBlitz();
-  if (hit("#rUndo"))     return undoBlitz();
   if (hit("#prevM")) { V.month = new Date(V.month.getFullYear(), V.month.getMonth() - 1, 1); return renderMonth(); }
   if (hit("#nextM")) { V.month = new Date(V.month.getFullYear(), V.month.getMonth() + 1, 1); return renderMonth(); }
   if (hit("#prevW")) { V.week = addDays(V.week || weekStartKey(todayKey()), -7); return renderWeekView(); }
   if (hit("#nextW")) { V.week = addDays(V.week || weekStartKey(todayKey()),  7); return renderWeekView(); }
 
   if (e.target === $("#day")) return closeDay();
-
-  const bz = hit("[data-blitz]");
-  if (bz) return blitzTap(bz.dataset.blitz, bz);
 
   const t = hit("[data-go],[data-view],[data-day],[data-tick],[data-more],[data-led],[data-undo],[data-std],[data-editplan],[data-delroom],[data-amin],[data-arep],[data-adow],[data-aroom]");
   if (!t) return;

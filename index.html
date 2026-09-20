@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=13">
+<link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 
@@ -98,34 +98,6 @@
     <button class="btn go mid" id="aSave">Add it</button>
     <button class="btn ghost" id="aDelete" hidden>Delete this for good</button>
     <div class="err" id="aErr"></div>
-  </div>
-</section>
-
-<!-- BLITZ: run -->
-<section id="s-run" class="screen">
-  <div class="wrap">
-    <div class="top"><div class="brand" id="runDay">Today</div>
-      <button class="btn ghost" style="width:auto" id="runDone">I'm done</button></div>
-    <div class="timer" id="timer">10:00</div>
-    <div class="tsub" id="tsub">Tap what you finish. Hold one to see the standard.</div>
-    <div id="chips"></div>
-  </div>
-</section>
-
-<!-- BLITZ: result -->
-<section id="s-result" class="screen">
-  <div class="wrap">
-    <div style="height:30px"></div>
-    <div class="result">
-      <div class="lbl" id="rLbl">You banked</div>
-      <div class="pts" id="rPts">0</div>
-      <div class="lbl" id="rMin">0 minutes</div>
-      <p class="sub" style="margin:18px 0 0" id="rTeam"></p>
-    </div>
-    <div style="margin-top:16px">
-      <button class="btn go mid" data-go="s-home">Back to the calendar</button>
-      <button class="btn ghost" id="rUndo">Didn't mean that. Undo it.</button>
-    </div>
   </div>
 </section>
 
@@ -227,8 +199,7 @@
     <div class="dsring"><svg viewBox="0 0 120 120"><circle class="rb" cx="60" cy="60" r="52"></circle><circle class="rf" id="dsRing" cx="60" cy="60" r="52"></circle></svg><div class="dsrt" id="dsRingText">0/0</div></div>
     <div id="dsList"></div>
     <div class="dsfoot">
-      <button class="btn go mid" id="dsBlitz" style="margin:0">Start a blitz</button>
-      <button class="btn mid" id="dsAdd" style="margin:0">Add a task</button>
+      <button class="btn go mid" id="dsAdd" style="margin:0">Add a task</button>
     </div>
   </div>
 </div>
@@ -237,7 +208,7 @@
 <div id="burst" class="burst" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="config.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

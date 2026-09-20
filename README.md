@@ -32,7 +32,7 @@ on the month grid fills from the bottom. Finish every task on a day and the
 square locks solid green with a check and confetti fires.
 
 **COMPLETE A TASK** at the bottom of every screen opens today straight away.
-Adding something new lives inside a day, next to the blitz button.
+Adding something new lives inside a day, under the list.
 
 **Adding is two taps.** What is it, how long, done. It lands on the day you had
 open, once. Repeats, rooms and floor tasks only appear when you edit something
