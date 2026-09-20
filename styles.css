@@ -94,6 +94,21 @@ h2{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:6px 0 4px}
 .wdcount.all{color:var(--sage)}
 .wdnone{font-size:14px;color:var(--muted);font-weight:600}
 
+/* ---------- the blocks of a day ---------- */
+.block{margin-bottom:16px}
+.block:last-child{margin-bottom:4px}
+.bhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:0 2px 1px;border-bottom:1px solid var(--line);margin-bottom:3px}
+.blabel{font-weight:900;font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink)}
+.bmeta{font-weight:800;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bhint{font-size:13px;color:var(--muted);font-weight:600;margin:0 2px 9px}
+.block.done .blabel{color:var(--sage)}
+.block.done .bmeta{color:var(--sage)}
+/* past nine and the house is still open. Warm, never alarming. */
+.block.due .bhead{border-bottom-color:var(--terra)}
+.block.due .blabel,.block.due .bmeta{color:var(--terra)}
+.block.due .bhint{color:var(--terra);font-weight:800}
+
 /* ---------- task chips ---------- */
 .chip{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 15px;
   margin-bottom:8px;box-shadow:var(--shadow);display:flex;align-items:center;gap:11px;width:100%;text-align:left}

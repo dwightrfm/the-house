@@ -31,6 +31,15 @@ every week on a chosen weekday, every other week, or on the same date each month
 on the month grid fills from the bottom. Finish every task on a day and the
 square locks solid green with a check and confetti fires.
 
+**The app opens on today**, with the day already open, because the question when
+you pick up your phone is "what needs doing," not "what month is it." Close it and
+the calendar is right there.
+
+**A day comes in three blocks.** Morning is the bed and nothing else. **Close the
+house** is the fifteen minute reset at 9pm, both of you, and it is the whole plan:
+sink empty, counters cleared, coffee table and desk cleared. Then **the one job**,
+which is never two. Past nine with the house still open, that block marks itself.
+
 **COMPLETE A TASK** at the bottom of every screen opens today straight away.
 Adding something new lives inside a day, under the list.
 

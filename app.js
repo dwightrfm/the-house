@@ -1,7 +1,7 @@
 /* THE HOUSE — the calendar
    One house, one calendar, one team. Tasks sit on days. Days fill in. */
 
-const BUILD = 14;
+const BUILD = 15;
 
 // GitHub Pages caches index.html, so a phone can sit on an old version long
 // after a change ships. Ask the server what the current build is, reload once.
@@ -134,6 +134,18 @@ function occurrencesOn(key) {
   return out.sort((a, b) => (a.p.sort_order - b.p.sort_order) || a.p.title.localeCompare(b.p.title));
 }
 const doneRow = (planId, key) => S.log.find(e => e.plan_id === planId && e.on_date === key);
+
+/* ---------- the three blocks of a day ----------
+   A day is not a flat list. It is: the bed when you get up, the house closed at
+   night, and the one bigger job. A daily task marked as floor IS the night
+   reset, which is why those two are the same flag. */
+const CLOSE_HOUR = 21;                        // 9pm
+const blockOf = p => p.repeat !== "daily" ? "job" : (p.floor ? "night" : "morning");
+const BLOCKS = [
+  { key: "morning", label: "Morning",         hint: "Right after you get out of it." },
+  { key: "night",   label: "Close the house", hint: "9:00 PM. Both of you, together." },
+  { key: "job",     label: "The one job",     hint: "Any time today. There is only ever one." }
+];
 function dayStat(key) {
   const occ = occurrencesOn(key);
   const done = occ.filter(x => doneRow(x.p.id, key));
@@ -312,9 +324,30 @@ function renderDay() {
   $("#dsRing").style.strokeDashoffset = (327 * (1 - pct)).toFixed(1);
   $("#dsRingText").textContent = st.total ? st.done + "/" + st.total : "—";
 
-  $("#dsList").innerHTML = st.total
-    ? st.occ.map(x => taskChip(x, key, true)).join("")
-    : `<div class="quiet">Free day. Add something if you want it on here.</div>`;
+  if (!st.total) {
+    $("#dsList").innerHTML = `<div class="quiet">Free day. Add something if you want it on here.</div>`;
+  } else {
+    const isToday = key === todayKey();
+    const late = new Date().getHours() >= CLOSE_HOUR;
+    let html = "";
+    for (const b of BLOCKS) {
+      const items = st.occ.filter(x => blockOf(x.p) === b.key);
+      if (!items.length) continue;
+      const done = items.filter(x => doneRow(x.p.id, key)).length;
+      const mins = items.reduce((n, x) => n + x.p.minutes, 0);
+      const all  = done === items.length;
+      const due  = isToday && b.key === "night" && late && !all;
+      html += `<section class="block${all ? " done" : ""}${due ? " due" : ""}">
+        <div class="bhead">
+          <span class="blabel">${b.label}</span>
+          <span class="bmeta">${all ? "&#10003; done" : mins + " min"}</span>
+        </div>
+        <div class="bhint">${due ? "It's past nine. This is the one." : b.hint}</div>
+        ${items.map(x => taskChip(x, key, true)).join("")}
+      </section>`;
+    }
+    $("#dsList").innerHTML = html;
+  }
 
 }
 
@@ -769,6 +802,7 @@ async function start() {
   $("#app").hidden = false;
   V.week = weekStartKey(todayKey());
   go("s-home");
+  openDay(todayKey());              // open on what needs doing, not on the month
 }
 
 (async function boot() {
