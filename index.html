@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
 
@@ -24,39 +24,13 @@
 
 <div id="app" hidden>
 
-<!-- WHO -->
-<section id="s-who" class="screen">
-  <div class="wrap">
-    <h2 style="margin-top:60px">Who's this?</h2>
-    <p class="sub">Just so a name rides along on what you finish. Same calendar either way.</p>
-    <div id="whoBtns"></div>
-  </div>
-</section>
-
 <!-- HOME: THE CALENDAR -->
 <section id="s-home" class="screen">
   <div class="wrap">
     <div class="top">
       <div class="brand">The House</div>
-      <button class="who" id="whoChip">D</button>
+      <button class="who" id="menuBtn" aria-label="Menu">&#9776;</button>
     </div>
-
-    <!-- the chain -->
-    <div class="chainbar">
-      <div class="chain" id="chainBox">
-        <span class="spark"></span>
-        <span class="cnum" id="chainNum">0</span>
-        <span class="clab" id="chainLab">day chain</span>
-      </div>
-      <div class="wk">
-        <div class="wkline">This week</div>
-        <div class="wknum"><b id="wkNow">0</b> <span id="wkGoal">of 180</span></div>
-        <div class="goalbar"><i id="wkBar" style="width:0%"></i></div>
-      </div>
-    </div>
-
-    <!-- right now -->
-    <div id="nowCard"></div>
 
     <!-- view switch -->
     <div class="seg">
@@ -73,7 +47,6 @@
       </div>
       <div class="dows"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
       <div class="grid" id="grid"></div>
-      <div class="mstat" id="mStat"></div>
     </div>
 
     <!-- week -->
@@ -87,16 +60,8 @@
     </div>
 
     <div id="dateCard"></div>
-    <div id="thankPrompt"></div>
-    <div class="feed" id="feed"></div>
-
-    <div style="margin-top:18px">
-      <button class="btn mid" data-go="s-ledger">The log</button>
-      <button class="btn mid" data-go="s-standards">The Standards</button>
-      <button class="btn mid" data-go="s-settings">Settings</button>
-    </div>
   </div>
-  <button class="primary" id="addFab">+ ADD TO A DAY</button>
+  <button class="primary" id="completeFab">COMPLETE A TASK</button>
 </section>
 
 <!-- ADD / EDIT -->
@@ -202,6 +167,13 @@
     </button>
 
     <div class="card">
+      <h3>This week</h3>
+      <div class="big" style="font-size:30px;font-weight:900;letter-spacing:-.03em;margin:2px 0 0">
+        <span id="setWkNow">0</span> <span style="font-size:17px;color:var(--muted);font-weight:700" id="setWkGoal">of 180</span></div>
+      <div class="goalbar"><i id="setWkBar" style="width:0%"></i></div>
+    </div>
+
+    <div class="card">
       <h3>Goals</h3>
       <div class="field" style="margin-top:12px"><label>Weekly goal (minutes)</label><input id="setGoal" type="number" inputmode="numeric"></div>
       <div class="field"><label>Bare minimum floor (minutes)</label><input id="setFloor" type="number" inputmode="numeric"></div>
@@ -215,8 +187,8 @@
     </div>
 
     <div class="card">
-      <h3>Your recent taps</h3>
-      <p style="margin-bottom:12px">Tapped something you didn't actually do? Take it back. You can only undo your own.</p>
+      <h3>Recent taps</h3>
+      <p style="margin-bottom:12px">Tapped something that didn't actually happen? Take it back.</p>
       <div id="recent"></div>
     </div>
 
@@ -233,7 +205,6 @@
       <p id="seasonLine"></p>
     </div>
 
-    <button class="btn ghost" id="switchWho">Switch person</button>
   </div>
 </section>
 
@@ -263,7 +234,7 @@
 <div id="burst" class="burst" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="config.js?v=11"></script>
-<script src="app.js?v=11"></script>
+<script src="config.js?v=12"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

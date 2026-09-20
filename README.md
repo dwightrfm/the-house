@@ -29,10 +29,10 @@ every week on a chosen weekday, every other week, or on the same date each month
 
 **Tap the box to finish it.** The phone buzzes, the day's ring fills, the square
 on the month grid fills from the bottom. Finish every task on a day and the
-square locks solid green with a check, confetti fires, and the chain grows.
+square locks solid green with a check and confetti fires.
 
-**The chain** is the run of finished days. A day with nothing scheduled does not
-break it. A day with unfinished work does. When it breaks it just starts over.
+**COMPLETE A TASK** at the bottom of every screen opens today straight away.
+Adding something new lives inside a day, next to the blitz button.
 
 **Push and skip.** The three dots on any task push it to tomorrow, push it a
 week, drop it on any date, or skip that one time. A repeating task only moves
@@ -42,18 +42,19 @@ the one occurrence you touched. Nothing is ever late, overdue, or red.
 
 1. Neither person can assign work to the other. You only claim it.
 2. Nothing is ever overdue, late, failed, or red.
-3. There is one calendar and one score. Dwight's total is never shown next to
-   Kander's. A quiet name tag rides on each finished task so the thank-you notes
-   know who to thank, and that is the only place a name appears.
+3. There are no people in this app. One house, one calendar, one score. Nothing
+   anywhere records or displays who did what.
 4. Everything is priced in minutes.
-5. A broken chain says nothing. It starts over.
+5. The home screen is the calendar and nothing else. Everything else lives
+   behind the menu in the top right.
 
 ## Bare Minimum Mode
 
 Settings > "This week is a lot." Drops the weekly goal to the floor and hides
-every task except the ones marked as floor tasks. The chain still counts. It
-turns itself off at the start of the next week, and the app never mentions how
-often you use it.
+every task except the ones marked as floor tasks. It turns itself off at the
+start of the next week, and the app never mentions how often you use it.
+
+The weekly total and goal live in Settings, not on the calendar.
 
 ## The Standards
 

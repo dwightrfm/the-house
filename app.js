@@ -1,7 +1,7 @@
 /* THE HOUSE — the calendar
    One house, one calendar, one team. Tasks sit on days. Days fill in. */
 
-const BUILD = 11;
+const BUILD = 12;
 
 // GitHub Pages caches index.html, so a phone can sit on an old version long
 // after a change ships. Ask the server what the current build is, reload once.
@@ -17,11 +17,10 @@ const BUILD = 11;
 })();
 
 const CFG = window.HOUSE_CONFIG || {};
-const PEOPLE = CFG.PEOPLE || ["Dwight", "Kander"];
 let sb = null;
 
-const S = { rooms: [], tasks: [], plans: [], moves: [], log: [], settings: null,
-            thanks: [], nights: [], me: null };
+// One house, one team. The app does not track who did what.
+const S = { rooms: [], tasks: [], plans: [], moves: [], log: [], settings: null, nights: [] };
 const V = { view: "month", month: new Date(), week: null };
 const DS = { key: null };
 const B  = { key: null, endsAt: 0, tick: null, session: [] };
@@ -61,14 +60,13 @@ function niceDay(k) {
 /* ---------- data ---------- */
 async function loadAll() {
   const from = dkey(new Date(Date.now() - 200 * DAY));
-  const [rooms, tasks, plans, moves, log, settings, thanks, nights] = await Promise.all([
+  const [rooms, tasks, plans, moves, log, settings, nights] = await Promise.all([
     sb.from("rooms").select("*").order("sort_order"),
     sb.from("tasks").select("*").order("sort_order"),
     sb.from("plans").select("*").order("sort_order"),
     sb.from("moves").select("*"),
     sb.from("log").select("*").gte("created_at", from),
     sb.from("settings").select("*").eq("id", 1).single(),
-    sb.from("thanks").select("*").order("created_at", { ascending: false }).limit(30),
     sb.from("date_nights").select("*").order("week_of", { ascending: false }).limit(12)
   ]);
   // The calendar tables are the one thing that needs a manual step in Supabase.
@@ -86,7 +84,6 @@ async function loadAll() {
   S.log   = log.data || [];
   S.settings = settings.data || { weekly_goal: 180, floor_goal: 45, bare_minimum: false,
                                   season_started: todayKey() };
-  S.thanks = thanks.data || [];
   S.nights = nights.data || [];
 
   // A bare minimum week turns itself off at the start of the next week.
@@ -149,19 +146,6 @@ function dayStat(key) {
   };
 }
 
-/* ---------- the chain ---------- */
-function chainLen() {
-  let k = todayKey(), n = 0, guard = 0;
-  const floorK = S.settings.season_started || addDays(todayKey(), -365);
-  if (!dayStat(k).locked) k = addDays(k, -1);
-  while (guard++ < 400 && k >= floorK) {
-    const st = dayStat(k);
-    if (st.total > 0) { if (st.locked) n++; else break; }   // empty days never break it
-    k = addDays(k, -1);
-  }
-  return n;
-}
-
 /* ---------- minutes ---------- */
 const logKey  = e => e.on_date || dkey(new Date(e.created_at));
 const goalNow = () => S.settings.bare_minimum ? S.settings.floor_goal : S.settings.weekly_goal;
@@ -218,56 +202,8 @@ function go(id) {
 
 /* ---------- home ---------- */
 function renderHome() {
-  $("#whoChip").textContent = (S.me || "?")[0];
-
-  const n = chainLen();
-  $("#chainNum").textContent = n;
-  $("#chainLab").textContent = n === 1 ? "day chain" : "day chain";
-  $("#chainBox").classList.toggle("lit", n > 0);
-
-  const mins = weekMins(), goal = goalNow();
-  $("#wkNow").textContent  = mins;
-  $("#wkGoal").textContent = "of " + goal;
-  $("#wkBar").style.width  = Math.min(100, (mins / goal) * 100) + "%";
-  $("#wkBar").classList.toggle("hit", mins >= goal);
-
-  renderNow();
   if (V.view === "month") renderMonth(); else renderWeekView();
   renderDateCard();
-  renderThankPrompt();
-  renderFeed();
-}
-
-function nextUp() {
-  let k = todayKey();
-  for (let i = 0; i < 21; i++) {
-    const open = occurrencesOn(k).filter(x => !doneRow(x.p.id, k));
-    if (open.length) return { key: k, item: open[0], count: open.length,
-                              mins: open.reduce((n, x) => n + x.p.minutes, 0) };
-    k = addDays(k, 1);
-  }
-  return null;
-}
-function renderNow() {
-  const el = $("#nowCard"), up = nextUp();
-  if (!up) {
-    el.innerHTML = `<div class="now clear">
-      <div class="nlab">Nothing waiting</div>
-      <div class="ntitle">The calendar is clear.</div>
-      <div class="nmeta">Three weeks out, nothing on it. Enjoy that.</div>
-      <button class="btn mid" id="nowAdd" style="margin:0">Put something on a day</button></div>`;
-    return;
-  }
-  const today = up.key === todayKey();
-  const rest  = up.count - 1;
-  el.innerHTML = `<div class="now${today ? "" : " clear"}">
-    <div class="nlab">${today ? "Right now" : "Next up, " + esc(niceDay(up.key))}</div>
-    <div class="ntitle">${esc(up.item.p.title)}</div>
-    <div class="nmeta">${up.item.p.minutes} minutes${rest > 0
-      ? ", and " + rest + " more on that day" : ", the only one left that day"}</div>
-    <button class="btn go mid" data-tick="${up.item.p.id}|${up.key}" style="margin:0">Done. Tap it.</button>
-    <button class="btn ghost" data-day="${up.key}" style="margin:6px 0 0">Open ${esc(niceDay(up.key).toLowerCase())}</button>
-  </div>`;
 }
 
 function renderMonth() {
@@ -279,12 +215,11 @@ function renderMonth() {
   const cells  = Math.ceil((offset + days) / 7) * 7;
   const start  = new Date(first); start.setDate(1 - offset);
 
-  let html = "", locked = 0, loaded = 0;
+  let html = "";
   for (let i = 0; i < cells; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const key = dkey(d), inMonth = d.getMonth() === m.getMonth();
     const st = dayStat(key);
-    if (inMonth && st.total > 0) { loaded++; if (st.locked) locked++; }
 
     const cls = ["day"];
     if (!inMonth) cls.push("other");
@@ -292,11 +227,12 @@ function renderMonth() {
     if (st.locked) cls.push("locked");
 
     const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
+    // Four dots at most, so they stay on one line. The fill bar carries the rest.
+    const shown = Math.min(st.total, 4);
+    const lit = st.total ? Math.round((st.done / st.total) * shown) : 0;
     const dots = st.total
-      ? `<span class="dots">` + Array.from({ length: Math.min(st.total, 5) },
-          (_, j) => `<span class="dot${j < st.done ? " on" : ""}"></span>`).join("")
-        + (st.total > 5 ? `<span class="dot" style="background:transparent">&nbsp;</span>` : "")
-        + `</span>` : "";
+      ? `<span class="dots">` + Array.from({ length: shown },
+          (_, j) => `<span class="dot${j < lit ? " on" : ""}"></span>`).join("") + `</span>` : "";
 
     html += `<button class="${cls.join(" ")}" data-day="${key}" data-cell="${key}">
       ${st.locked ? "" : `<span class="fill" style="height:${pct}%"></span>`}
@@ -305,9 +241,6 @@ function renderMonth() {
     </button>`;
   }
   $("#grid").innerHTML = html;
-  $("#mStat").textContent = loaded
-    ? locked + " of " + loaded + (loaded === 1 ? " loaded day" : " loaded days") + " finished this month"
-    : "Nothing on the calendar this month yet";
 }
 
 function renderWeekView() {
@@ -344,7 +277,6 @@ function taskChip(x, key, withMore) {
   const bits = [];
   if (room) bits.push(esc(room.name));
   if (x.moved) bits.push("moved here");
-  if (hit) bits.push("by " + esc(hit.person || "us"));
   return `<div class="chip${hit ? " done" : ""}">
     <button class="box" data-tick="${x.p.id}|${key}" aria-label="done">${hit ? "&#10003;" : ""}</button>
     <button class="cn" style="background:none;padding:0;text-align:left" data-tick="${x.p.id}|${key}">
@@ -371,47 +303,6 @@ function renderDateCard() {
                                         { onConflict: "week_of" });
     await loadAll(); renderHome();
   };
-}
-
-function renderThankPrompt() {
-  const el = $("#thankPrompt");
-  const them = PEOPLE.find(p => p !== S.me);
-  if (!them) { el.innerHTML = ""; return; }
-  const theirs = S.log.filter(e => e.person === them)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
-  if (!theirs) { el.innerHTML = ""; return; }
-  const mine = S.thanks.find(t => t.from_person === S.me && t.to_person === them);
-  if (mine && new Date(mine.created_at) > new Date(theirs.created_at)) { el.innerHTML = ""; return; }
-
-  const lines = [
-    "You make this house feel like home.",
-    "I'm glad it's you and me.",
-    "You showing up for us doesn't go unnoticed.",
-    "Thank you for who you are, not just what you did.",
-    "This place feels good because of you."
-  ];
-  const line = lines[new Date(theirs.created_at).getDate() % lines.length];
-  el.innerHTML = `<div class="card" style="border-color:var(--sand)">
-    <h3>${esc(them)} put in work.</h3>
-    <p style="margin-bottom:12px">"${esc(line)}"</p>
-    <button class="btn go mid" id="thankGo">Send it</button>
-    <button class="btn ghost" id="thankOwn">Say my own thing</button></div>`;
-  $("#thankGo").onclick  = () => sendThanks(them, line);
-  $("#thankOwn").onclick = () => {
-    const own = prompt("What do you want to say to " + them + "?");
-    if (own && own.trim()) sendThanks(them, own.trim());
-  };
-}
-async function sendThanks(to, message) {
-  await sb.from("thanks").insert({ from_person: S.me, to_person: to, message });
-  buzz(); await loadAll(); renderHome();
-}
-function renderFeed() {
-  const cut = Date.now() - 3 * DAY;
-  $("#feed").innerHTML = S.thanks.filter(t => new Date(t.created_at).getTime() > cut)
-    .slice(0, 5).map(t =>
-      `<div class="thank">${esc(t.message)}<small><b>${esc(t.from_person)}</b> to ${esc(t.to_person)}</small></div>`
-    ).join("");
 }
 
 /* ---------- the day sheet ---------- */
@@ -446,8 +337,7 @@ async function tick(planId, key) {
   const p = S.plans.find(x => x.id === planId); if (!p) return;
   const had = doneRow(planId, key);
 
-  if (had) {                                        // take it back, only your own
-    if (had.person && had.person !== S.me) return;
+  if (had) {                                        // tapped by mistake, take it back
     await sb.from("log").delete().eq("id", had.id);
     await loadAll(); refresh(key);
     return;
@@ -456,7 +346,7 @@ async function tick(planId, key) {
   const wasLocked = dayStat(key).locked;
   buzz(14);
   const ins = await sb.from("log").insert({
-    person: S.me, room_id: p.room_id || null, plan_id: p.id, on_date: key,
+    person: "us", room_id: p.room_id || null, plan_id: p.id, on_date: key,
     task_name: p.title, minutes: p.minutes, points: p.minutes
   }).select("id");
   if (ins.data && ins.data[0]) B.session.push(ins.data[0].id);
@@ -478,7 +368,7 @@ function refresh(key, popped) {
 
 async function undoEntry(id) {
   const e = S.log.find(x => x.id === id);
-  if (!e || (e.person && e.person !== S.me)) return;
+  if (!e) return;
   await sb.from("log").delete().eq("id", id);
   await loadAll();
   if ($("#s-ledger").classList.contains("on")) renderLedger();
@@ -541,6 +431,21 @@ function openMore(planId, key) {
   $("[data-skip]", sh).onclick = () => { close(); skipOcc(p.id, key); };
   $("[data-edit]", sh).onclick = () => { close(); closeDay(); openAdd(p, key); };
   $("[data-close]", sh).onclick = close;
+}
+
+function openMenu() {
+  const sh = $("#sheet");
+  sh.hidden = false;
+  sh.innerHTML = `<div style="width:100%;max-width:400px">
+    <div style="color:#fff;font-size:21px;font-weight:800;text-align:center;margin-bottom:18px">The House</div>
+    <button class="btn mid" data-menu="s-ledger">The log</button>
+    <button class="btn mid" data-menu="s-standards">The Standards</button>
+    <button class="btn mid" data-menu="s-settings">Settings</button>
+    <button class="btn ghost" data-menuclose="1" style="color:#fff">Never mind</button></div>`;
+  const close = () => { sh.hidden = true; };
+  sh.onclick = e => { if (e.target === sh) close(); };
+  $$("[data-menu]", sh).forEach(b => b.onclick = () => { close(); go(b.dataset.menu); });
+  $("[data-menuclose]", sh).onclick = close;
 }
 
 /* ---------- add and edit ---------- */
@@ -729,13 +634,12 @@ function renderLedger() {
       lastDay = k;
     }
     const room = S.rooms.find(x => x.id === e.room_id);
-    const own = !e.person || e.person === S.me;
     out += `<div class="std-row">
       <span class="sn">${esc(e.task_name || "Cleaned")}
-        <span class="sm">${esc(e.person || "us")}${room ? " · " + esc(room.name) : ""} · ${
+        <span class="sm">${room ? esc(room.name) + " · " : ""}${
           d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span></span>
       <span class="cm" style="font-weight:800;color:var(--muted)">${e.minutes}m</span>
-      ${own ? `<button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-undo="${e.id}">Undo</button>` : ""}
+      <button class="btn ghost" style="width:auto;margin:0;padding:8px 10px" data-undo="${e.id}">Undo</button>
     </div>`;
   });
   $("#ledList").innerHTML = out;
@@ -805,6 +709,12 @@ function renderSettings() {
   $("#setGoal").value  = S.settings.weekly_goal;
   $("#setFloor").value = S.settings.floor_goal;
 
+  const wm = weekMins(), wg = goalNow();
+  $("#setWkNow").textContent  = wm;
+  $("#setWkGoal").textContent = "of " + wg + " minutes";
+  $("#setWkBar").style.width  = Math.min(100, (wm / wg) * 100) + "%";
+  $("#setWkBar").classList.toggle("hit", wm >= wg);
+
   const live = S.plans.filter(p => !p.archived);
   $("#planAdmin").innerHTML = live.length ? live.map(p => {
     const room = S.rooms.find(r => r.id === p.room_id);
@@ -818,7 +728,7 @@ function renderSettings() {
       <span class="cm" style="color:var(--muted);font-weight:800">Edit</span></button>`;
   }).join("") : `<div class="quiet">Nothing on the calendar yet.</div>`;
 
-  const mine = S.log.filter(e => !e.person || e.person === S.me)
+  const mine = S.log.slice()
     .sort((x, y) => new Date(y.created_at) - new Date(x.created_at)).slice(0, 12);
   $("#recent").innerHTML = mine.length ? mine.map(e => {
     const when = new Date(e.created_at);
@@ -842,9 +752,8 @@ function renderSettings() {
 document.addEventListener("click", async e => {
   const hit = sel => e.target.closest(sel);
 
-  if (hit("#whoChip") || hit("#switchWho")) return go("s-who");
-  if (hit("#addFab"))    return openAdd(null, DS.key || todayKey());
-  if (hit("#nowAdd"))    return openAdd(null, todayKey());
+  if (hit("#menuBtn"))      return openMenu();
+  if (hit("#completeFab"))  return openDay(todayKey());
   if (hit("#addCancel")) { const b = A.back; go("s-home"); if (b === "day") openDay(A.date); return; }
   if (hit("#aSave"))     return saveAdd();
   if (hit("#aDelete"))   return deletePlan();
@@ -938,14 +847,8 @@ async function start() {
   await loadAll();
   $("#boot").hidden = true;
   $("#app").hidden = false;
-  S.me = localStorage.getItem("house_me");
   V.week = weekStartKey(todayKey());
-  $("#whoBtns").innerHTML = PEOPLE.map(p =>
-    `<button class="btn big3" data-me="${esc(p)}">${esc(p)}</button>`).join("");
-  $$("[data-me]").forEach(b => b.onclick = () => {
-    S.me = b.dataset.me; localStorage.setItem("house_me", S.me); go("s-home");
-  });
-  go(S.me ? "s-home" : "s-who");
+  go("s-home");
 }
 
 (async function boot() {
